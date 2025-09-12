@@ -539,3 +539,728 @@ Private relays = **“private pipelines”** for transactions, used to protect M
 
 ✅ **In short:**  
 An EL client “knows all wallets” because it maintains the **entire Ethereum state trie**, updated with every block. Every balance, nonce, and contract is part of this global state, not something the client has to “discover” one by one.  
+
+
+### 🔹 Ethereum (ETH)
+- **State storage:** Merkle Patricia Trie (MPT) → maps addresses → accounts (balance, nonce, storage, code).
+- **Persistence:** Entire state is maintained *continuously* and updated with every block.
+- **Size:** As of 2025, the Ethereum world state is hundreds of GBs (≈250–350 GB depending on pruning).
+- **Lifetime:** Indefinite — state persists as long as accounts/contracts exist.
+
+---
+
+### 🔹 Ethereum Classic (ETC)
+- **Same design as Ethereum** (before upgrades like Verkle tries are introduced).
+- Uses the Merkle Patricia Trie for global state.
+- **Size:** A bit smaller than ETH because of less activity and fewer contracts.
+- **Lifetime:** Also indefinite — state grows with chain usage.
+
+---
+
+### 🔹 Bitcoin (BTC)
+- **Different model:** UTXO (Unspent Transaction Output) set.
+- No account trie — instead, it tracks all unspent outputs in a database (LevelDB/RocksDB).
+- **Persistence:** UTXO set is updated every block, like Ethereum’s state.
+- **Size:** Much smaller — ~10–15 GB today (since it only tracks spendable outputs, not contracts/storage).
+- **Lifetime:** Indefinite, updated as long as Bitcoin runs.
+
+---
+
+✅ **In short:**
+- ETH & ETC → use a **Merkle Patricia Trie** to store the full account-based world state, continuously updated, and now hundreds of GB in size.
+- BTC → uses a **UTXO set** instead, stored in a database, smaller (~10–15 GB).
+- In all cases, this state is kept *forever*, updated at each block, because it’s the reference for validating new transactions.  
+
+
+### 🔹 Ethereum / Ethereum Classic State Model
+
+- **Accounts:**  
+  Two types:
+  1. **Externally Owned Accounts (EOAs):** normal wallets (just balance + nonce).
+  2. **Contract Accounts:** smart contracts (balance + code + *storage*).
+
+- **Storage:**
+  - Each contract account has its own persistent key-value store.
+  - This storage is part of the world state, kept in the Merkle Patricia Trie.
+  - Keys/values are 32-byte slots.
+
+---
+
+### 🔹 Solidity Example (your array case)
+```solidity
+uint256[] public myArray;
+```
+### 🔹 Storage Mapping in Solidity
+
+- **`myArray.length`** → stored at a fixed slot.  
+- **Elements (`myArray[0]`, `myArray[1]`, …)** → stored at derived slots (using `keccak256` hashing).  
+
+When your contract runs, the **EVM reads/writes** these slots in the account’s storage.  
+
+---
+
+### 🔹 Key Point
+- **Yes:** In Ethereum/ETC, “storage” is the persistent data space inside **contract accounts**.  
+- **EOAs (human wallets):** no contract storage, only **balance + nonce**.  
+- All of this lives inside the global **state trie**, so every node can validate and reproduce the same results.  
+
+---
+
+✅ **In short:**  
+Arrays, mappings, and structs in Solidity → compiled into **storage slots** → stored in the contract account → persisted in the **state trie**.  
+
+### 🔹 Coinbase Accounts
+
+- **User accounts at Coinbase**
+  - When you open a Coinbase account, they create a **custodial wallet** for you.
+  - On-chain, this corresponds to an **Externally Owned Account (EOA)** controlled by Coinbase’s infrastructure, not directly by you.
+  - Coinbase holds the private keys, you just interact via their app/API.
+
+- **Contract accounts**
+  - Coinbase doesn’t create contract accounts for you by default.
+  - If you deploy a smart contract, *you* (or your app) would create that account on Ethereum, not Coinbase.
+
+---
+
+✅ **In short:**  
+Coinbase user wallets are **EOAs**. They’re custodial EOAs, meaning Coinbase holds the keys. Contract accounts are separate and created only when you deploy smart contracts.  
+
+### 🔹 MetaMask Accounts
+
+- **EOAs only**
+  - MetaMask generates **Externally Owned Accounts (EOAs)** for users.
+  - You control these via your private key or seed phrase.
+  - These EOAs can hold ETH/tokens, sign txs, and interact with smart contracts.
+
+- **Contract accounts**
+  - MetaMask does **not** create contract accounts automatically.
+  - If you deploy a smart contract using MetaMask, *that action* creates a new **contract account** on Ethereum.
+  - But the creation comes from your EOA sending a deployment transaction.
+
+---
+
+✅ **In short:**  
+MetaMask = wallet for **EOAs**.  
+Contract accounts exist only if you **deploy a contract** from your EOA.  
+
+### 🔹 Create an Externally Owned Account (EOA)
+- EOAs are just a **keypair** (private key + address).
+- They are **not created on-chain** until they send or receive ETH/tokens.
+- Typical API calls:
+  - **web3.js / ethers.js**
+    ```js
+    // web3.js
+    const account = web3.eth.accounts.create();
+    console.log(account.address, account.privateKey);
+    ```
+    ```js
+    // ethers.js
+    const wallet = ethers.Wallet.createRandom();
+    console.log(wallet.address, wallet.privateKey);
+    ```
+  - **JSON-RPC**
+    - `personal_newAccount` (if node has the personal API enabled)
+
+---
+
+### 🔹 Create a Contract Account
+- Contract accounts are created **on-chain** when an EOA sends a special transaction with `data` = compiled bytecode.
+- Typical API calls:
+  - **JSON-RPC**
+    - `eth_sendTransaction` with a `data` field (no `to` address)
+    ```json
+    {
+      "from": "0xYourEOA",
+      "data": "0x6080604052...",   // contract bytecode
+      "gas": "0x500000"
+    }
+    ```
+  - **web3.js / ethers.js**
+    ```js
+    const contract = new web3.eth.Contract(abi);
+    contract.deploy({ data: bytecode })
+      .send({ from: account, gas: 5000000 });
+    ```
+    ```js
+    const factory = new ethers.ContractFactory(abi, bytecode, wallet);
+    const contract = await factory.deploy();
+    ```
+
+---
+
+✅ **In short:**
+- **EOA = keypair** → created locally via libraries (`accounts.create`, `Wallet.createRandom`, etc.), no transaction required.
+- **Contract account = deployed contract** → created on-chain via `eth_sendTransaction` with `data = bytecode`.  
+
+
+### 🔹 EOAs and the Ledger
+- An **EOA is just a keypair** (address + private key).
+- When you generate it locally (MetaMask, ethers.js, Coinbase internal systems), it doesn’t yet exist *on-chain*.
+- The Ethereum ledger doesn’t pre-store “all possible addresses.”
+
+---
+
+### 🔹 How it receives assets
+- Ethereum’s **world state** (state trie) is a mapping: `address → account data`.
+- If an address has **never been used**, it simply isn’t present in the state trie.
+- The **moment someone sends ETH/tokens to it**, the EL client:
+  - Creates a new entry in the state trie for that address.
+  - Initializes it with balance (and nonce = 0).
+
+---
+
+### 🔹 Key Point
+- You don’t need to “register” an EOA on-chain before receiving assets.
+- The address is deterministically derived from your keypair, so anyone can send to it.
+- The ledger will “activate” the account when a transaction or transfer first touches it.
+
+---
+
+✅ **In short:**  
+An EOA is “off-chain” until first use. Once ETH or a token is sent to it, the execution client creates an entry for it in the global state, and from then on, it’s part of the ledger.  
+
+### 🔹 How Ethereum Addresses Are Derived
+
+1. **Private key**
+  - A random 256-bit number.
+  - Must remain secret (controls the account).
+
+2. **Public key**
+  - Derived from the private key using Elliptic Curve Cryptography (secp256k1).
+  - One-to-one relationship: every private key produces exactly one public key.
+
+3. **Address**
+  - Take the public key.
+  - Hash it with `keccak256`.
+  - Take the **last 20 bytes** → that’s your Ethereum address.
+  - Example:
+    ```
+    address = keccak256(public_key)[12:]
+    ```
+
+---
+
+### 🔹 Why it’s deterministic
+- Given the same private key → always get the same public key → always get the same address.
+- No central registry is needed.
+- That’s why wallets like MetaMask or Coinbase can generate addresses offline and know they’ll work.
+
+---
+
+### 🔹 How others can send to it
+- Once you know the address, you don’t need the private key to send assets there.
+- Anyone can include that address in a transaction’s `to` field.
+- When the first transfer happens, Ethereum clients add the address to the global state with its new balance.
+
+---
+
+✅ **In short:**  
+An Ethereum address is just a deterministic hash of a keypair. Because it’s predictable and unique, it can receive ETH or tokens *even before it appears on-chain*.  
+
+### 🔹 Block arrives
+- The EL client receives a new block (with its transactions) from peers.
+- Each transaction has a `from`, `to`, `value`, `gas`, and optional `data`.
+
+---
+
+### 🔹 Processing transactions
+- For each tx, the client:
+  1. **Checks sender (`from`)**
+    - The account *must* already exist in the state trie (otherwise tx is invalid).
+  2. **Checks recipient (`to`)**
+    - If `to` exists → update its balance / run contract code.
+    - If `to` does **not** exist and it’s not empty code → create a new account entry in the state trie.
+      - Example: first time you send ETH to a fresh EOA.
+
+---
+
+### 🔹 Updating the global state trie
+- If an address didn’t exist in the trie yet:
+  - The client inserts a new entry (`balance = value`, `nonce = 0`, `code = empty`, `storage = empty`).
+- The state root is recalculated after applying all transactions in the block.
+- The block header includes this **new state root**, which every node checks to stay in sync.
+
+---
+
+### 🔹 Key Point
+- EL clients don’t “pre-know” all addresses.
+- They **dynamically add them** to the state trie the first time a tx touches them.
+- That’s how a never-before-used EOA can suddenly hold ETH after its first incoming transfer.
+
+✅ **In short:**  
+When a block arrives, the EL client processes txs → if a `to` address isn’t in the trie yet, it **creates it on the fly** and updates the state accordingly.  
+
+
+### 🔹 Why an EOA address is unique and deterministic
+- **1 private key → 1 public key → 1 address**
+  - Private key: random 256-bit number.
+  - Public key: derived from private key using elliptic curve multiplication (secp256k1).
+  - Address: `address = keccak256(public_key)[12:]` → last 20 bytes.
+
+---
+
+### 🔹 Key implications
+- **Deterministic:** Same private key always yields the same address.
+- **Unique:** The probability of two private keys giving the same address is astronomically small.
+- **Trustless:** Anyone can generate an address offline, no central registry needed.
+- **Receivable:** Others only need the 20-byte address, not the public or private key, to send ETH/tokens.
+
+---
+
+✅ **In short:**  
+An EOA works because cryptography guarantees a *1-to-1 deterministic mapping* from private key → public key → address. That’s why an address can exist “off-chain” and still receive assets the first time it’s referenced in a block.  
+
+### 🔹 Private Key
+- A 256-bit secret number — must be kept hidden.
+- **Used for:**
+  - **Signing transactions** (ECDSA signatures).
+  - Proving ownership of the account (you control the funds).
+- Never shared; only the signature is broadcast.
+
+---
+
+### 🔹 Public Key
+- Derived from the private key (via secp256k1 elliptic curve multiplication).
+- **Used for:**
+  - **Verifying signatures** → nodes confirm that a tx was signed by the right private key.
+  - **Deriving the address** → `keccak256(public_key)[12:]`.
+- Doesn’t need to be kept secret; anyone can know it.
+
+---
+
+### 🔹 Address
+- Derived from the public key.
+- **Used for:**
+  - Receiving ETH/tokens.
+  - Identifying accounts on-chain.
+- Much shorter (20 bytes) so easier to handle than raw public keys.
+
+---
+
+✅ **In short:**
+- **Private key = sign.**
+- **Public key = verify.**
+- **Address = receive.**  
+
+
+### 🔹 Public Key
+- **What it is:**
+  - Mathematically derived from the private key (via elliptic curve multiplication).
+  - A fixed identifier that corresponds to one private key.
+
+- **Purpose:**
+  - Used to **verify** signatures created with the private key.
+  - Used to derive your **address** (`keccak256(public_key)[12:]`).
+
+- **Properties:**
+  - Can be shared openly.
+  - Same every time (doesn’t change).
+
+---
+
+### 🔹 Signature
+- **What it is:**
+  - A cryptographic proof generated by applying the private key to some message (e.g., a transaction).
+  - In Ethereum, this is an **ECDSA signature** (r, s, v values).
+
+- **Purpose:**
+  - Proves that the message/transaction came from the holder of the private key.
+  - Allows others to check validity using only the public key.
+
+- **Properties:**
+  - Different every time, even if the same message is signed (because of randomization in the algorithm).
+  - Only valid for the specific message signed.
+
+---
+
+✅ **In short:**
+- **Public key** = a *static identifier* derived from the private key, used for verification.
+- **Signature** = a *dynamic proof* generated with the private key, used to show authenticity of a specific message.  
+
+### 🔹 Step 1 — You create the transaction
+- You fill in:
+  - `to` = your friend’s address
+  - `value` = 1 ETH
+  - `gas` + `maxFeePerGas`
+- This unsigned transaction is just a piece of data.
+
+---
+
+### 🔹 Step 2 — MetaMask uses your private key
+- MetaMask holds your **private key** (in the browser extension, encrypted with your password).
+- It takes the unsigned tx data and runs **ECDSA signing** with your private key.
+- Output = transaction + **signature (r, s, v)**.
+- The private key **never leaves MetaMask**.
+
+---
+
+### 🔹 Step 3 — Transaction broadcast
+- The signed transaction is sent to your connected **Execution Layer (EL) client** (e.g., Infura, Alchemy, or your own Geth).
+- The client gossips it across the Ethereum p2p network (devp2p → eth/66 protocol).
+
+---
+
+### 🔹 Step 4 — How the EL verifies
+When another EL client receives the tx:
+1. **Recover public key** from the signature (possible because ECDSA allows key recovery).
+2. Hash public key with `keccak256`, take last 20 bytes → reconstruct the **sender address**.
+3. Check:
+  - Does the sender exist in the state trie?
+  - Does the sender have ≥ 1 ETH + gas fees?
+  - Is the nonce correct?
+  - Is the signature valid?
+
+If all checks pass → tx is valid and goes to the mempool.
+
+---
+
+### 🔹 Step 5 — Block inclusion
+- A validator eventually proposes a block.
+- The EL executes your tx:
+  - Deducts 1 ETH + gas from **your EOA balance**.
+  - Increments your nonce.
+  - Adds 1 ETH to your friend’s account (creating it in the trie if it didn’t exist yet).
+
+---
+
+✅ **In short:**
+- **Private key**: signs the tx (in MetaMask).
+- **Signature**: proves authenticity, lets EL recover your public key/address.
+- **Public key**: never sent directly, only reconstructed from the signature.
+- **Execution client**: verifies signature + state, then updates balances when block is mined.  
+
+### 🔹 1. Proposer is chosen
+- In Proof-of-Stake, the **beacon chain (Consensus Layer)** randomly selects a validator to propose the next block.
+- That validator runs *both*:
+  - A **Consensus Layer (CL) client** (e.g., Lighthouse, Prysm).
+  - An **Execution Layer (EL) client** (e.g., Geth, Nethermind).
+
+---
+
+### 🔹 2. EL prepares the payload
+- The validator’s **EL client** takes pending transactions from its **mempool**.
+- It executes them in order, applying gas limits and validity checks.
+- Result = **execution payload**:
+  - List of transactions
+  - Resulting state root
+  - Receipts, logs, etc.
+
+---
+
+### 🔹 3. Handshake between EL and CL
+- The **EL client** passes this execution payload to the validator’s **CL client** through the **Engine API** (`engine_getPayload`, `engine_newPayload`, etc.).
+- CL client doesn’t execute txs — it just trusts EL for state.
+
+---
+
+### 🔹 4. Block is proposed
+- The validator’s **CL client** wraps the execution payload into a beacon block.
+- Broadcasts the block to other validators on the P2P network.
+
+---
+
+### 🔹 5. Other validators verify
+- Peers’ **EL clients** re-execute the payload transactions to confirm the state root.
+- Their **CL clients** check consensus rules (signatures, attestations).
+- If all checks pass → block accepted.
+
+---
+
+✅ **In short:**
+- The EL client *inside the validator’s own node* feeds transactions → execution payload → to the CL client.
+- The CL client → proposes the block to the rest of the network.
+- So the tx doesn’t “travel” to some remote staker — the validator *is* running EL+CL together.  
+
+### 🔹 Normal flow (no MEV-Boost)
+- Each validator runs its own **EL client** with a mempool.
+- When selected to propose a block, it picks txs from *its own mempool* to build the block.
+
+---
+
+### 🔹 With MEV-Boost
+- Validators **outsource block building** to external **block builders**.
+- Flow:
+  1. Searchers → send bundles of profitable txs to builders.
+  2. Builders → construct candidate full blocks (using their own mempool + bundles).
+  3. Builders → submit bids via **relays** to validators.
+  4. Validator (via MEV-Boost middleware) → chooses the most profitable block proposal.
+
+- The validator’s own EL client doesn’t build the block in this case — it just verifies the block is valid after the builder provides it.
+
+---
+
+### 🔹 Key point
+- MEV-Boost **does not send txs directly into a validator’s mempool**.
+- Instead, it bypasses the validator’s mempool entirely by letting **builders deliver ready-made blocks**.
+- Validators pick between blocks (auctions), not transactions.
+
+---
+
+✅ **In short:**
+- **Without MEV-Boost**: Validator’s mempool → block.
+- **With MEV-Boost**: Builder’s mempool/bundles → block → validator.  
+
+
+### 🔹 Execution Payload (simplified structure)
+
+- **parentHash** – Hash of the parent execution block.
+- **feeRecipient** – Address that receives transaction fees (validator’s chosen withdrawal address).
+- **stateRoot** – Root of the state trie *after* applying all included transactions.
+- **receiptsRoot** – Root of the receipts trie (logs/events for each tx).
+- **logsBloom** – Bloom filter for quickly searching logs/events.
+- **prevRandao** – Randomness for the block (from beacon chain).
+- **blockNumber** – Height of the chain.
+- **gasLimit / gasUsed** – Gas constraints for the block.
+- **timestamp** – Unix time of the block.
+- **baseFeePerGas** – Base fee from EIP-1559.
+- **extraData** – Arbitrary data (set by proposer/builder).
+- **transactions[]** – The full list of signed txs included.
+- **withdrawals[]** – Withdrawals from validator balances (post-Shanghai/Capella).
+
+---
+
+### 🔹 Example (simplified JSON)
+
+```json
+{
+  "parentHash": "0xabc123...",
+  "feeRecipient": "0xdef456...",
+  "stateRoot": "0x789abc...",
+  "receiptsRoot": "0x456def...",
+  "logsBloom": "0x00...ff",
+  "blockNumber": 1928374,
+  "gasLimit": 30000000,
+  "gasUsed": 2893472,
+  "timestamp": 1694451200,
+  "baseFeePerGas": "0x34e62ce00",
+  "transactions": [
+    "0xf86c820...",
+    "0xf87083..."
+  ],
+  "withdrawals": [
+    { "index": 1, "validatorIndex": 12345, "address": "0xaaa...", "amount": 32000000000 }
+  ]
+}
+```
+
+### 🔹 Why miners went to Siberia
+- PoW required massive energy, and electricity was the #1 cost.
+- Regions with **cheap hydropower** (Siberia, Quebec, Iceland, parts of China) became mining hubs.
+- Firms co-located their rigs near power stations to cut costs.
+
+---
+
+### 🔹 What happened after The Merge
+- Ethereum (ETH) abandoned PoW completely → GPUs/ASICs for ETH became useless.
+- Some miners tried to:
+  - Switch to **Ethereum Classic (ETC)** or coins like **Ravencoin, Ergo**.
+  - Repurpose GPUs for AI/ML workloads.
+  - Sell hardware (big wave of used GPUs hit markets in 2022–23).
+- Specialized ETH ASICs mostly became e-waste.
+
+---
+
+### 🔹 Today
+- The **ETH PoW mining business is gone**.
+- Bitcoin mining still thrives — and cheap electricity hubs are still relevant — but BTC is mined with specialized ASICs, not GPUs.
+- Those Siberian operations that were ETH-only either pivoted to BTC/ETC, sold off, or shut down.
+
+---
+
+✅ **In short:**  
+The “cheap hydropower farm in Siberia” strategy worked in the PoW era. After Ethereum’s Merge, ETH mining ended, so that business disappeared — only BTC and a few smaller PoW coins keep similar setups alive.  
+
+### 🔹 Example of Profitable Transactions to Builders
+- **Arbitrage:**  
+  Buy token on Uniswap at 100, sell on Sushiswap at 102 → profit from price difference.
+- **Liquidations:**  
+  On Aave or Maker, liquidate an undercollateralized loan → get a liquidation bonus.
+- **Sandwich attack:**  
+  Detect a large buy order in mempool → place your buy just before, and sell just after, profiting from slippage.
+- **Bundle:**  
+  Searcher can package multiple txs together (buy + sell) to guarantee atomic profit if block includes both.
+
+Builders receive these bundles and create blocks with maximum value for validators.
+
+---
+
+### 🔹 Who is a Searcher?
+- **Searcher = profit seeker.**
+- They run bots to scan the mempool or private relays for opportunities.
+- Use custom simulation engines to test “what if my tx went here?” scenarios.
+- Submit **bundles of profitable txs** to builders (via Flashbots or other relays).
+- Compete against other searchers → whoever pays the highest tips to validators usually wins.
+
+---
+
+✅ **In short:**
+- **Searcher = trader/algorithm/bot** that finds and bundles profitable opportunities.
+- **Builder = block constructor** who takes txs (including from searchers) and assembles the most profitable block.
+- Together they feed the MEV auction that validators pick from.  
+
+### 🔹 Collateralized Lending (Aave / Maker)
+- User deposits collateral (e.g., 10 ETH) and borrows stablecoins (e.g., 10,000 DAI).
+- Protocol requires a **collateral ratio** (e.g., 150%).
+
+---
+
+### 🔹 When the loan goes underwater
+- If ETH price drops, collateral may no longer meet the ratio.
+- Example: 10 ETH @ $2,000 = $20,000 collateral → ratio = 200%.
+- If ETH falls to $1,200 → $12,000 collateral, ratio = 120% (below 150%).
+- Loan is now **undercollateralized**.
+
+---
+
+### 🔹 Liquidation process
+1. Protocol marks the position as liquidatable.
+2. **Searcher (liquidator)** sends a liquidation transaction.
+  - Repays part/all of the borrower’s debt on their behalf.
+3. In return:
+  - Liquidator seizes borrower’s collateral at a discount (e.g., 5–10%).
+  - That discount = **liquidation bonus**, pure profit for the liquidator.
+
+---
+
+### 🔹 Why it’s profitable
+- Liquidators can instantly resell the collateral on DEXs.
+- The “bonus” ensures bots/searchers race to liquidate risky positions.
+
+---
+
+✅ **In short:**  
+Liquidations = buying collateral at a discount by paying off someone’s bad loan.  
+Searchers/bots compete to grab these chances for a guaranteed profit.  
+
+### 🔹 Case: Liquidation on Aave / Maker
+- Borrower’s position falls below collateral ratio.
+- Liquidator repays the borrower’s debt (partially or fully).
+- In return, liquidator gets the borrower’s collateral **+ a small bonus**.
+
+---
+
+### 🔹 Does Aave/Maker lose money?
+- **No, normally they don’t.**
+  - The debt is repaid (by the liquidator).
+  - The seized collateral covers the debt + the liquidation bonus.
+  - Protocol remains solvent.
+
+- **When risk appears:**
+  - If the market moves **too fast** (e.g., ETH price crashes suddenly), collateral value might fall below debt + bonus.
+  - In such cases, protocol’s insurance fund (e.g., Aave Safety Module, Maker’s Surplus Buffer) absorbs the shortfall.
+
+---
+
+### 🔹 Who bears the loss?
+- **Normal liquidation:** borrower loses collateral, liquidator profits, protocol safe.
+- **Extreme crash:** protocol’s backstop funds or governance tokens (AAVE/MKR) may be used to cover deficit.
+
+---
+
+✅ **In short:**
+- In regular conditions → **Aave/Maker do not lose money** in liquidations.
+- In extreme volatility → **losses are socialized** via insurance/backstop mechanisms.  
+
+
+### 🔹 Aave
+- All core contracts (LendingPool, Incentives, Governance, etc.) are deployed on Ethereum.
+- Source code is published and verified on **Etherscan**.
+- Repo: [github.com/aave/protocol-v2](https://github.com/aave/protocol-v2) (and v3).
+- Governance decisions (risk parameters, asset listings) are made by **AAVE token holders** through on-chain governance.
+
+---
+
+### 🔹 MakerDAO
+- Maker Protocol contracts (Vaults, Collateral, DAI Stablecoin, Liquidations) are also fully on-chain.
+- Verified on **Etherscan**.
+- Repo: [github.com/makerdao](https://github.com/makerdao).
+- Governance (like stability fees, collateral ratios) decided by **MKR token holders** via public governance votes.
+
+---
+
+### 🔹 Why this matters
+- Because contracts are public + immutable once deployed, users and searchers/liquidators can trust:
+  - How collateralization is calculated.
+  - How liquidations happen.
+  - How governance parameters are applied.
+- Protocol transparency = stronger trust, no hidden rules.
+
+✅ **In short:**  
+Yes — Aave and Maker publish their smart contracts openly, and loan governance (risk params, fees, collateral) is enforced by **on-chain code** plus token-holder governance.  
+
+### 🔹 Ethereum (L1)
+- Base blockchain network.
+- Provides security, consensus, and settlement.
+- Hosts smart contracts for apps like Aave, Maker, Uniswap, etc.
+
+---
+
+### 🔹 Aave
+- A **lending protocol** deployed as smart contracts on Ethereum (and also on some L2s like Polygon, Arbitrum, Optimism).
+- Not its own chain — it lives *on Ethereum or L2s*.
+
+---
+
+### 🔹 MakerDAO
+- Protocol behind the **DAI stablecoin**.
+- Runs entirely on Ethereum smart contracts.
+- Uses governance via MKR token to set parameters.
+- Also **not its own chain**.
+
+---
+
+✅ **In short:**
+- **Ethereum = L1 blockchain.**
+- **Aave & MakerDAO = applications/protocols built on Ethereum L1 (and some L2s).**
+- They depend on Ethereum’s security, not their own consensus.  
+
+### 🔹 What is Base?
+- A **Layer 2 blockchain** built by Coinbase.
+- Uses the **OP Stack** (same tech as Optimism).
+- Secures itself by posting data/transactions back to Ethereum (L1).
+
+---
+
+### 🔹 Why it exists
+- Cheaper & faster transactions than Ethereum mainnet.
+- Fully compatible with the Ethereum Virtual Machine (EVM).
+- Tightly integrated with Coinbase products → easy on/off ramps.
+
+---
+
+### 🔹 Key traits
+- **Not an L1** → it inherits security from Ethereum.
+- **Rollup**: executes transactions off-chain, then batches them to Ethereum.
+- **Ecosystem**: DeFi, NFTs, on-chain apps — same as Ethereum, but lower gas.
+
+---
+
+✅ **In short:**  
+**Base = Coinbase’s Ethereum Layer 2 (built with Optimism tech).**  
+It’s not its own L1 like Ethereum or Solana — it’s an L2 rollup that depends on Ethereum for final security.  
+
+### 🔹 Sequencers (in L2s like Base, Arbitrum, Optimism)
+- Role: order transactions and create L2 blocks.
+- They **do not** run MEV auctions like Ethereum validators.
+- They send compressed transaction data back to Ethereum (L1) for finality.
+- Today: centralized (often a single sequencer per rollup, run by the project team).
+- Future: roadmap to decentralize sequencing and enable shared MEV auctions.
+
+---
+
+### 🔹 MEV Relays / Validators (Ethereum L1)
+- **Validators**: chosen by Ethereum PoS to propose blocks.
+- **MEV relays**: deliver block bundles (via MEV-Boost) to validators.
+- This happens only on Ethereum L1, not inside Base/Arbitrum/Optimism (yet).
+
+---
+
+### 🔹 Key Difference
+- **Sequencer** = transaction orderer in an L2.
+- **Validator/Relay** = transaction/bundle orderer in Ethereum L1 MEV auctions.
+- Base’s sequencer (run by Coinbase) decides tx order **within Base**, but Base still posts the results to Ethereum, where L1 validators enforce finality.
+
+---
+
+✅ **In short:**  
+Coinbase’s Base sequencers are **not MEV relays or validators**. They are L2 ordering nodes. Ethereum L1 validators (with MEV relays) still decide the *final ordering at the base layer*.  
