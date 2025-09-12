@@ -90,17 +90,66 @@ ERC-20 is an **Ethereum standard** that says:
 
 ---
 
-## 🔹 Our Token
-- We implemented **all required functions** (`totalSupply`, `balanceOf`, `transfer`, `approve`, `allowance`, `transferFrom`).
-- We also emit the required **events** (`Transfer`, `Approval`).
-- That’s why our token is **ERC-20 compliant**.
+# 🔹 Scenarios for ERC-20 Functions
+
+### 1. `totalSupply()`
+- Scenario: An exchange or explorer (like Etherscan) wants to show **how many tokens exist in total**.
+- Example: "This token has 1,000,000 total supply."
 
 ---
+
+### 2. `balanceOf(address)`
+- Scenario: A wallet (MetaMask) needs to display your balance.
+- Example: You open your wallet → it calls `balanceOf(0xYourAddress)`.
+
+---
+
+### 3. `transfer(address to, uint256 value)`
+- Scenario: You want to **send tokens** to a friend.
+- Example: Alice calls `transfer(Bob, 100)` → Bob gets 100 tokens.
+
+---
+
+### 4. `approve(address spender, uint256 value)`
+- Scenario: You want to allow a dApp or smart contract to use your tokens.
+- Example: Before swapping on Uniswap, you must `approve(Uniswap, 100)` so it can pull your tokens.
+
+---
+
+### 5. `allowance(address owner, address spender)`
+- Scenario: A dApp checks **how many tokens it is allowed to spend on your behalf**.
+- Example: Uniswap checks `allowance(Alice, Uniswap)` to see if Alice approved enough.
+
+---
+
+### 6. `transferFrom(address from, address to, uint256 value)`
+- Scenario: A smart contract executes the actual transfer **using the approved allowance**.
+- Example: After Alice approved Uniswap, Uniswap calls `transferFrom(Alice, Pool, 100)` to move tokens.
+
+---
+
+# 🔹 Required Events
+
+### `Transfer`
+- Scenario: Whenever tokens move (mint, burn, send).
+- Example: Etherscan shows "Alice → Bob: 100 tokens" by listening to this event.
+
+### `Approval`
+- Scenario: Whenever an approval is set or changed.
+- Example: Wallet shows "Alice approved Uniswap to spend 100 tokens."
+
+---
+
+✅ **In short:**
+- **Wallets** use `balanceOf`, `totalSupply`.
+- **Users** use `transfer`.
+- **dApps/DEXs** use `approve`, `allowance`, `transferFrom`.
+- **Block explorers** use `Transfer` and `Approval` events to show activity.
+
 
 ✅ **In short:**  
 A token is ERC-20 compliant if it **follows the standard interface** of functions + events.  
 This makes it plug-and-play with wallets, exchanges, and dApps in the Ethereum ecosystem.
-
 
 # 🔹 How it works step by step
 

@@ -1424,3 +1424,197 @@ console.log("Deployed to:", contract.target);
 ✅ **In short:**  
 ETH on an L2 wallet **does not show up on mainnet by default**.  
 You need to bridge it back to L1 if you want mainnet ETH.  
+
+# 🔹 Why the trie keeps growing
+- Every new account, contract, or storage variable adds entries to the **state trie**.
+- Even if some contracts are inactive, their state often remains.
+- Over time → trie = bigger and more complex.
+
+---
+
+# 🔹 Hardware impact on full nodes
+1. **Disk (SSD)**
+  - State and history are stored in LevelDB/RocksDB.
+  - The larger the trie, the bigger the on-disk database.
+  - Today: hundreds of GBs (state + history).
+  - Archival nodes (with all historical states) = several **terabytes**.
+
+2. **RAM**
+  - Node must cache part of the trie for performance.
+  - As trie size grows, more RAM helps with fast lookups.
+  - Typical full node: 16–32 GB RAM recommended for healthy performance.
+
+3. **CPU**
+  - Needed for hashing (`keccak256`) and verifying blocks.
+  - Bigger trie = more hashing and lookups per block.
+
+---
+
+# 🔹 Mitigations
+- **Pruning**: Removes old historical state, keeps only latest.
+- **Snapshots**: Speeds up state access instead of walking the trie every time.
+- **Stateless roadmap**: Ethereum research aims to reduce how much state each node must hold.
+- **Verkle tries (future)**: More efficient successor to the Merkle Patricia Trie.
+
+---
+
+✅ **In short:**  
+Yes — as the trie grows, **disk and RAM needs go up** for full nodes. That’s why Ethereum clients recommend SSDs and large memory. Future upgrades (Verkle tries, pruning, statelessness) aim to keep node requirements manageable.  
+
+
+# 🔹 Full Node vs Archival Node (Ethereum)
+
+### Full Node
+- **Stores:**
+  - Current state (balances, storage, contract code).
+  - Recent block history (usually a few thousand blocks).
+- **Deletes/prunes:**
+  - Old historical state (past account balances, storage snapshots).
+- **Purpose:**
+  - Can validate all new transactions and blocks.
+  - Keeps network secure.
+  - Enough for running wallets, dApps, validators, and explorers that only need *latest* state.
+- **Storage size (2025):** ~500–800 GB on SSD.
+
+---
+
+### Archival Node
+- **Stores:**
+  - Everything a full node does **plus** all historical states (every balance, storage slot, and contract state at every block since genesis).
+- **Never prunes:** keeps the entire chain history.
+- **Purpose:**
+  - For explorers (like Etherscan), analytics, research.
+  - Useful if you want to query: “What was Alice’s balance at block 7,000,000?”
+  - Not needed for normal use.
+- **Storage size (2025):** 15–20+ TB (grows constantly).
+
+---
+
+### Key Difference
+- **Full node:** Only latest state → efficient, enough to participate in consensus.
+- **Archival node:** All historical states → massive storage, mainly for research/exploration.
+
+---
+
+✅ **In short:**
+- **Full node** = lean, validates current chain, recommended for most users/validators.
+- **Archival node** = full history of everything, needed only for explorers, researchers, or analytics platforms.  
+
+
+# 🔹 Lite Nodes on L2s
+
+### 1. Optimistic Rollups (Arbitrum, Optimism, Base)
+- **Sequencer**: orders txs and posts compressed data (calldata/blobs) to Ethereum L1.
+- **Lite node** on L2:
+  - Doesn’t hold full state.
+  - Verifies L2 block headers and proofs of data availability.
+  - For deeper queries (balances, logs), it asks a full L2 node.
+- Security: ultimately backed by **Ethereum full nodes**, since rollups post data to L1.
+
+---
+
+### 2. zk-Rollups (Polygon zkEVM, zkSync, StarkNet)
+- Post **validity proofs** (zk-SNARKs) to L1.
+- **Lite node** on L2:
+  - Can cheaply verify proofs without replaying every transaction.
+  - Requires very little storage or computation.
+- This makes zk-rollups especially friendly for light clients.
+
+---
+
+### 3. Practical Reality (2025)
+- Most users (e.g., MetaMask, Coinbase Wallet) **don’t run full or lite nodes**.
+- They connect to RPC providers (Infura, Alchemy, QuickNode, etc.).
+- Research and some projects are working on **trust-minimized light clients** for L2s, but adoption is still early.
+
+---
+
+✅ **In short:**  
+Yes — L2s can have lite nodes:
+- **Optimistic rollups** → light clients that verify headers + fraud-proof system.
+- **zk-rollups** → even better, since validity proofs allow cheap verification.  
+  But today, most apps just connect to RPC providers instead of running a lite node.  
+
+
+# 🔹 What are zk-Rollups?
+- A **Layer 2 scaling solution** that batches many transactions off-chain and posts:
+  1. **Compressed transaction data** → to Ethereum L1 (for availability).
+  2. A **validity proof** (zk-SNARK/STARK) → to Ethereum L1 (for correctness).
+
+- “zk” = zero-knowledge → proofs show a statement is true without revealing all details.
+
+---
+
+# 🔹 How it works (step by step)
+1. Users send transactions → sequencer/rollup node collects them.
+2. Rollup executes all txs off-chain.
+3. Instead of sending every computation to L1, it generates a **cryptographic proof** that all txs were valid.
+4. Proof + minimal data are submitted to Ethereum L1.
+5. Ethereum full nodes verify the proof very efficiently (milliseconds), without re-running all txs.
+
+---
+
+# 🔹 Why it’s powerful
+- **Scalability:** Thousands of txs compressed into one proof → huge throughput.
+- **Cheap verification:** Ethereum only checks the proof, not every tx.
+- **Fast finality:** Once proof is accepted on L1, txs are considered final.
+- **Security:** Inherits Ethereum L1 security — if the proof checks out, txs are valid.
+
+---
+
+# 🔹 Examples
+- **Polygon zkEVM** → aims for full EVM compatibility using zk-proofs.
+- **zkSync Era** → zk-rollup with a focus on developer-friendly tooling.
+- **StarkNet** → zk-rollup using STARKs (different proof system, more scalable).
+
+---
+
+# 🔹 Is it only an L2 feature?
+- Mostly **yes today**: zk-rollups are used as Ethereum L2s.
+- But the **concept is more general**:
+  - L1 blockchains themselves could adopt zk-proofs internally (e.g., zk-powered consensus).
+  - Some projects are exploring **zk-L1s** (chains that use zk-proofs as their native consensus).
+  - Example: Mina Protocol markets itself as a “zk-L1.”
+
+---
+
+✅ **In short:**
+- zk-Rollups = Ethereum L2 feature that scales by posting **validity proofs** to L1.
+- Not limited to L2s → zk-proofs can also be used at the L1 level, but Ethereum currently applies them in L2s.  
+
+# 🔹 Does Geth check zk-proofs in block payloads?
+- **No.**
+- Ethereum L1 (Geth, Nethermind, Besu, etc.) **does not natively handle zk-proofs** inside execution payloads.
+- Ethereum still executes *its own transactions* normally (every tx is re-run by every full node).
+
+---
+
+# 🔹 Where zk-proofs live
+- zk-rollups (Polygon zkEVM, zkSync, StarkNet) are **smart contracts deployed on Ethereum L1**.
+- These contracts:
+  - Accept compressed rollup transaction data + zk-proof.
+  - Verify the proof inside the contract (using precompiles for zk-SNARK/STARK verification).
+  - Update the rollup’s state root if valid.
+
+---
+
+# 🔹 What Geth actually does
+- Geth just sees: “Oh, here’s a transaction calling the rollup contract.”
+- It runs the contract code like any other tx.
+- The contract itself runs the zk-verification logic.
+- Geth doesn’t need to “know about zk-rollups” — it just executes EVM code.
+
+---
+
+# 🔹 Why it’s not hardcoded
+- Ethereum is general-purpose:
+  - zk-rollups, optimistic rollups, DeFi apps, NFTs → all are just **smart contracts**.
+- The protocol doesn’t need special zk-logic at the client level.
+- Instead, zk-rollups embed verification logic in their contracts.
+
+---
+
+✅ **In short:**
+- Geth is **not hardcoded** to check for zk-proofs in block payloads.
+- zk-rollups are implemented as smart contracts on Ethereum.
+- Geth just executes those contracts — the zk-proof verification happens *inside the rollup contract*.  
