@@ -2125,3 +2125,105 @@ When confidence breaks, the peg can enter a self-reinforcing death spiral.
 Lido’s model lets users stake ETH but not lose liquidity, thanks to tokenized staking (stETH), rewards accrual, and DAO governance that ensures the protocol is managed by community.
 
 Would you like me to compare Lido vs Rocket Pool vs other liquid staking providers similarly?  
+
+
+# 🔹 What is a Blob in Ethereum (EIP-4844 / Proto-Danksharding)?
+
+## 📌 Definition
+- A **blob** = large data packet attached to an Ethereum transaction.
+- Purpose: provide **cheap, temporary storage** for **L2 rollups** (Arbitrum, Optimism, zkSync, Base, etc.) to post compressed transaction data to Ethereum.
+- Unlike calldata, blobs are **not stored forever** → they are pruned after ~18 days.
+
+---
+
+## 🔹 Why Blobs?
+Before EIP-4844:
+- Rollups used **calldata** to publish their transaction data.
+- This was expensive and bloated Ethereum’s permanent state.
+
+With blobs:
+- **Temporary storage** → cheaper.
+- **Prunable data** → reduces node storage load.
+- **Lower gas cost** → makes rollup transactions much cheaper for users.
+
+---
+
+## 🔹 Example (from block #23353452)
+- **Blob Tx**: 1 transaction carried blob data.
+- **Blob Size**: 384 KiB = 3 blobs (each blob ≈ 128 KiB).
+- **Blob Utilisation**: 33% of block’s blob capacity used.
+- **Blob Gas Price**: 1 wei (0.000000001 Gwei) → very cheap.
+- **Blob Gas Limit**: 1,179,648 (maximum blob space per block).
+
+---
+
+## ✅ In Short
+Blobs = **temporary cheap storage for rollups**.  
+They are the first step toward **Danksharding**, Ethereum’s long-term scaling solution.
+
+
+# 🔹 Ethereum Fusaka Upgrade (Late 2025)
+
+Fusaka is Ethereum’s **upcoming network upgrade**, expected in **late 2025**.  
+It focuses on **scalability, efficiency, and cryptographic improvements**.
+
+---
+
+## ✨ Key Features
+- **PeerDAS (Peer Data Availability Sampling)**  
+  Lets nodes **sample data** instead of storing everything → improves **rollup scalability**.
+
+- **BPO (Blobs Per Object / related to EIP-4844 blobs)**  
+  Better handling of **blob transactions** for L2 data availability.
+
+- **ModExp Precompiles**  
+  Faster cryptographic operations (important for **zk-proofs** and advanced math).
+
+---
+
+## 📊 Inclusion Stages (Chart Explained)
+The chart tracks **EIPs (Ethereum Improvement Proposals)** considered for Fusaka:
+
+- 🟩 **Green = Included**
+- 🔵 **SFI (Stage Final Inclusion)** → very likely to make it in.
+- 🟠 **CFI (Candidate Final Inclusion)** → still being considered.
+- 🟣 **DFI (Draft Final Inclusion)** → early draft stage.
+- 🔴 **PFI (Potential Final Inclusion)** → possible, but uncertain.
+
+Each number in the grid is an **EIP ID** under review.
+
+---
+
+## 🚀 Roadmap Context
+- Builds on **Cancun/Prague (2024)**.
+- Paves the way for **Glamsterdam upgrade** (future milestone).
+- Part of Ethereum’s **rollup-centric scaling roadmap**.
+
+---
+
+✅ **In short**: Fusaka = late-2025 upgrade with **PeerDAS + blob handling + zk efficiency**.  
+It’s about making Ethereum **cheaper and faster for rollups**, while preparing for the next big step: **Glamsterdam**.
+
+
+# 🔹 Best RPC / Node Providers (2025)
+
+| Provider       | Free Tier                          | Strengths                                                                 | Best For                                    |
+|----------------|------------------------------------|---------------------------------------------------------------------------|---------------------------------------------|
+| **Alchemy**    | 300M compute units/month (~30M requests) | Largest free tier, super stable, great tooling (mempool watcher, NFT API, alerts) | Dapp builders needing scale + stability     |
+| **Infura**     | Small free tier                    | Battle-tested, widely used, easy integration                              | Standard choice, simple projects             |
+| **QuickNode**  | Small free tier, paid fast         | Very low latency, strong analytics, NFT APIs, SOC2 security               | Enterprises, high-speed trading / MEV bots   |
+| **Pocket Network** | 1M requests/day free            | Fully decentralized RPC, no downtime, censorship resistant                | Privacy / decentralization advocates         |
+| **Moralis**    | Free shared + archive nodes        | Web3 SDKs, NFT APIs, no logs (privacy)                                    | NFT / Web3 app developers                    |
+| **Allnodes**   | PublicNode free, dedicated paid    | Privacy focused, pay-per-hour, supports many chains                       | Heavy multi-chain users                      |
+| **Chainstack** | Free shared nodes                  | GraphQL support, bring-your-own-cloud                                     | Teams needing hybrid setups                  |
+| **Tenderly**   | 25M units/month free               | Simulations, debugging, transaction previews                              | Smart contract devs / testers                |
+| **ZMOK**       | Paid only                          | “Front-running as a service,” fastest block/mempool feeds                 | MEV searchers, trading bots                  |
+
+---
+
+## ✅ Recommendation (Best Deal)
+
+- **Max free tier → Alchemy (300M calls).**
+- **Decentralization/privacy → Pocket Network.**
+- **Fastest + analytics → QuickNode.**
+- **Debugging/contracts → Tenderly.**
