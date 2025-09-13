@@ -1618,3 +1618,252 @@ Yes — L2s can have lite nodes:
 - Geth is **not hardcoded** to check for zk-proofs in block payloads.
 - zk-rollups are implemented as smart contracts on Ethereum.
 - Geth just executes those contracts — the zk-proof verification happens *inside the rollup contract*.  
+
+# 🔹 Gas Guzzlers (Top Contracts by Gas Consumption)
+
+### 1. Tether: USDT Stablecoin
+- **Fees last 3hrs:** ~$4,887 (1.08 ETH)
+- **Fees last 24hrs:** ~$55,731 (12.30 ETH)
+- **% of gas used:** ~6–7% of all Ethereum gas.
+- Why? USDT is the most traded stablecoin, so transfers and approvals eat up lots of gas.
+
+---
+
+### 2. Uniswap V2: Router 2
+- **Fees last 3hrs:** ~$1,153 (0.25 ETH)
+- **Fees last 24hrs:** ~$15,133 (3.34 ETH)
+- **% of gas used:** ~3.2%.
+- Why? Users still swap tokens via older Uniswap V2 contracts. Each swap = multiple ERC20 transfers + liquidity pool logic.
+
+---
+
+### 3. Circle: USDC Token
+- **Fees last 3hrs:** ~$2,303 (0.51 ETH)
+- **Fees last 24hrs:** ~$28,244 (6.23 ETH)
+- **% of gas used:** ~3.7%.
+- Why? Like USDT, USDC is a top stablecoin. Heavy daily use for DeFi, trading, payments.
+
+---
+
+### 4. Uniswap V4: Universal Router
+- **Fees last 3hrs:** ~$1,498 (0.33 ETH)
+- **Fees last 24hrs:** ~$16,520 (3.65 ETH)
+- **% of gas used:** ~2%.
+- Why? The new Uniswap V4 router that aggregates liquidity across pools. Becoming more active as traders migrate.
+
+---
+
+# 🔹 What this means
+- Stablecoins (USDT, USDC) + DeFi protocols (Uniswap) **dominate Ethereum gas usage**.
+- High gas usage = they are the most **actively used contracts**.
+- When gas prices spike, it’s often due to heavy demand from swaps and stablecoin transfers.
+
+✅ **In short:**
+- **USDT & USDC**: heavy gas from constant transfers.
+- **Uniswap (V2 & V4)**: heavy gas from token swaps.
+- Together, these account for **10%+ of Ethereum’s gas use daily**.  
+
+
+| Rank | Contract / dApp              | What it is                                                                 |
+|------|------------------------------|-----------------------------------------------------------------------------|
+| 1    | **Tether: USDT Stablecoin**  | ERC-20 stablecoin pegged to USD. Most traded token, heavy gas from transfers. |
+| 2    | **Uniswap V2: Router 2**     | Routing contract for swaps/liquidity in Uniswap V2. Still widely used.       |
+| 3    | **Circle: USDC Token**       | ERC-20 stablecoin from Circle, pegged to USD. Heavy daily transfers.        |
+| 4    | **Uniswap V4: Universal Router** | Latest Uniswap router, aggregates liquidity across pools. Growing adoption. |
+| 5    | **OKX: DEX Router**          | Router for OKX’s on-chain swap/DEX service.                                 |
+| 6    | **MetaMask: Swap Router**    | Contract used by MetaMask’s built-in swap feature.                          |
+| 7    | **0x: Allowance Holder**     | Utility contract in 0x protocol, manages token approvals/allowances.        |
+| 8    | **Pendle: RouterV4**         | Router for Pendle Finance (yield trading protocol).                         |
+| 9    | **Banana Gun: Router 2**     | Bot-driven trading app/router for sniping tokens quickly.                   |
+| 10   | **Fake_Phishing1341503**     | Flagged phishing contract — not a real dApp, marked by Etherscan as scam.   |
+|      |                              |                                                                            |
+|      |                              |                                                                            |# 🔹 0x: Allowance Holder
+
+### What it is
+- Part of the **0x Protocol**, a popular decentralized exchange (DEX) infrastructure.
+- It’s a **smart contract that manages token allowances** for traders using 0x.
+
+---
+
+### Why it exists
+- In Ethereum, before a smart contract can move your ERC-20 tokens, you must call `approve(spender, amount)`.
+- For DEX aggregators (like 0x), users would otherwise have to approve **each swap separately**.
+- The **Allowance Holder** solves this by:
+  - Letting you grant 0x a token allowance once.
+  - Reusing that approval across many trades.
+
+---
+
+### How it works (step by step)
+1. User approves `0x Allowance Holder` contract to spend, e.g., 1000 USDC.
+2. When trading, the 0x exchange contract calls the Allowance Holder to move tokens on behalf of the user.
+3. The Allowance Holder transfers tokens into the DEX pool or to another trader.
+
+---
+
+### Benefits
+- **Gas efficiency**: fewer repeated approvals.
+- **User convenience**: one approval unlocks many trades.
+- **Security**: tokens only move within the 0x system; revoking approval stops it.
+
+---
+
+### Risks
+- Like any approval system, if the Allowance Holder contract (or 0x protocol) were exploited, approved tokens could be at risk.
+- Best practice: **approve only what you need** or revoke allowances later.
+
+---
+
+✅ **In short:**  
+The **0x Allowance Holder** is a helper contract that manages ERC-20 token approvals so users don’t have to constantly re-approve tokens for every 0x trade. It’s about efficiency + UX.  
+
+# 🔹 Does Etherscan need a Full Node or an Archival Node?
+
+### Full Node
+- Stores: **latest state** + recent blocks.
+- Can tell you:
+  - Current balances, token transfers, contract calls.
+  - Gas used in the latest txs/blocks.
+- Cannot tell you:
+  - **Historical state at an arbitrary old block** (e.g., Alice’s balance at block 7,000,000).
+
+### Archival Node
+- Stores: **every historical state** since genesis.
+- Can answer **deep history queries** like:
+  - "What was Uniswap Router gas usage in 2021?"
+  - "What was balance/allowance of this address 2 years ago?"
+
+---
+
+### What "Top 50 Gas Guzzlers" needs
+- The dashboard shows **gas usage for the last 3 hours / 24 hours**.
+- That only requires **a full node**, since it just tracks recent transactions.
+- Etherscan *does* run **archival nodes** too, but mostly for things like:
+  - Historical charts going back years.
+  - Showing balances at any past block.
+  - Time-travel debugging.
+
+---
+
+✅ **Answer:**  
+For **Top Gas Guzzlers (last 3h / 24h)** → **full node is enough**.  
+For **historical gas analytics (weeks, months, years)** → they rely on **archival nodes**.  
+
+# 🔹 Gas Spenders (Top 50 EOAs Paying Gas)
+
+### 1. Fake_Phishing1338353
+- Spent ~$5,216 in last 24h (1.10 ETH).
+- Likely flagged as a malicious / scam account by Etherscan.
+- Shows scammers/phishers still pay significant gas to operate bots/contracts.
+
+### 2. Coinbase: Deposit
+- Spent ~$10,393 in last 24h (2.20 ETH).
+- This is Coinbase’s deposit account → processes thousands of user transfers daily, hence high gas.
+
+### 3. Fake_Phishing1259784
+- Another phishing account flagged by Etherscan.
+- $3,241 (0.69 ETH) in gas last 24h.
+
+### 4. jaredfromsubway
+- Famous MEV bot operator.
+- $64,244 (13.60 ETH) spent in last 24h.
+- Runs sandwich attacks / arbitrage strategies, which burn huge gas but earn higher profits.
+
+### 5–7. More Fake_Phishing accounts
+- Each flagged phishing wallet, still actively sending txs.
+- Spent $2,600–$3,300 in gas fees over 24h.
+
+---
+
+# 🔹 Key Insights
+- **Exchanges (like Coinbase)** spend gas to process massive user inflows/outflows.
+- **MEV bots (e.g. jaredfromsubway)** spend large gas amounts to front-run and capture profit.
+- **Phishing / scam accounts** spend gas too — proof that even malicious activity pays Ethereum network fees.
+
+✅ **In short:**  
+This dashboard highlights *which EOAs* (not contracts) are paying the most gas fees. It’s dominated by:
+- Legit services (Coinbase),
+- MEV bot operators,
+- and flagged malicious actors (phishing wallets).  
+# 🔹 Gas Guzzlers vs Gas Spenders
+
+| Category       | What it means | Who appears here | Example from screenshots |
+|----------------|--------------|------------------|--------------------------|
+| **Gas Guzzlers** | Smart contracts / accounts that **consume** the most gas when executed. | Contracts like stablecoins, DEX routers, DeFi protocols. | Tether (USDT), Uniswap Router, Circle (USDC). |
+| **Gas Spenders** | Externally Owned Accounts (EOAs) that **pay** the most ETH in gas fees. | Users, exchanges, bots, or attackers sending many transactions. | Coinbase Deposit account, MEV bot `jaredfromsubway`, phishing wallets. |
+
+---
+
+### ✅ In short:
+- **Guzzlers** = which *contracts* are heavy on gas usage.
+- **Spenders** = which *EOAs* are footing the bill for gas.  
+
+
+| Upgrade Name             | Block Number     | Date                | What It Changed / Why It Mattered                                                                 |
+|--------------------------|------------------|----------------------|-----------------------------------------------------------------------------------------------|
+| Homestead                | ~1,150,000       | March 14, 2016       | First major stable upgrade: improved stability, added EVM opcodes, removed centralised features.  [oai_citation:0‡RockX](https://blog.rockx.com/blockchain-history-ethereum-forks/?utm_source=chatgpt.com) |
+| DAO Fork                 | ~1,920,000       | July 20, 2016         | Emergency fork after The DAO hack to restore stolen ETH; created Ethereum Classic.  [oai_citation:1‡RockX](https://blog.rockx.com/blockchain-history-ethereum-forks/?utm_source=chatgpt.com) |
+| Tangerine Whistle (EIP-150) | ~2,463,000    | October 18, 2016      | Mitigated DoS attack vectors by adjusting gas costs.  [oai_citation:2‡spydra.app](https://www.spydra.app/blog/ethereums-upgrade-journey-a-timeline-of-innovation?utm_source=chatgpt.com) |
+| Spurious Dragon          | ~2,675,000       | November 22, 2016     | More DoS mitigations, state cleaning, addressing vulnerabilities.  [oai_citation:3‡spydra.app](https://www.spydra.app/blog/ethereums-upgrade-journey-a-timeline-of-innovation?utm_source=chatgpt.com) |
+| Byzantium                | ~4,370,000       | October 16, 2017       | Introduced zk-SNARKs, REVERT opcode, reduced block rewards; many performance/security EIPs.  [oai_citation:4‡spydra.app](https://www.spydra.app/blog/ethereums-upgrade-journey-a-timeline-of-innovation?utm_source=chatgpt.com) |
+| Constantinople / Petersburg | ~7,280,000   | February 28, 2019       | Gas optimizations, delays to difficulty bomb, added CREATE2.  [oai_citation:5‡RockX](https://blog.rockx.com/blockchain-history-ethereum-forks/?utm_source=chatgpt.com) |
+| Istanbul                 | ~9,069,000       | December 8, 2019        | Further gas changes and performance improvements.  [oai_citation:6‡ethereum.org](https://ethereum.org/history/?utm_source=chatgpt.com) |
+| Berlin                   | ~12,244,000      | April 15, 2021           | Added new transaction types, more gas cost tweaks.  [oai_citation:7‡spydra.app](https://www.spydra.app/blog/ethereums-upgrade-journey-a-timeline-of-innovation?utm_source=chatgpt.com) |
+| London                   | ~12,965,000      | August 5, 2021          | Introduced EIP-1559: base fee burning, changed fee structure.  [oai_citation:8‡ethereum.org](https://ethereum.org/history/?utm_source=chatgpt.com) |
+| Arrow Glacier            | ~13,773,000      | December 9, 2021         | Difficulty bomb delay.  [oai_citation:9‡spydra.app](https://www.spydra.app/blog/ethereums-upgrade-journey-a-timeline-of-innovation?utm_source=chatgpt.com) |
+| Gray Glacier             | ~15,050,000      | June 30, 2022             | Last delay before the Merge.  [oai_citation:10‡ethereum.org](https://ethereum.org/history/?utm_source=chatgpt.com) |
+| Paris / The Merge        | ~15,537,393      | September 15, 2022       | Transition from Proof-of-Work to Proof-of-Stake.  [oai_citation:11‡ethereum.org](https://ethereum.org/history/?utm_source=chatgpt.com) |
+| Shanghai / Capella       | ~17,034,871      | April 12, 2023           | Enabled staking withdrawals; technical performance improvements.  [oai_citation:12‡ethereum.org](https://ethereum.org/history/?utm_source=chatgpt.com) |
+| Cancun / Dencun (EIP-4844) | ~19,426,587   | March 13, 2024           | Introduced blobs / proto-Danksharding, major scaling improvements for rollups.  [oai_citation:13‡ethereum.org](https://ethereum.org/history/?utm_source=chatgpt.com) |
+| Pectra (Prague-Electra)   | ~22,431,084     | May 7, 2025               | Account abstraction, staking improvements, better user / node operator features.  [oai_citation:14‡ethereum.org](https://ethereum.org/history/?utm_source=chatgpt.com) |
+
+## 🔹 More Details: Ethereum Pectra Upgrade
+
+Here are deeper details about Ethereum’s **Pectra upgrade** (Prague + Electra), what’s included, why it matters. Based on recent sources.
+
+---
+
+### 📅 Basic Facts
+
+- **Live date:** May 7, 2025  [oai_citation:0‡Datawallet](https://www.datawallet.com/crypto/ethereum-pectra-upgrade-explained?utm_source=chatgpt.com)
+- **Epoch:** 364032 in PoS consensus  [oai_citation:1‡Kraken](https://www.kraken.com/learn/ethereum-pectra-upgrade?utm_source=chatgpt.com)
+- **Number of EIPs included:** 11 major EIPs  [oai_citation:2‡Coinbase](https://www.coinbase.com/blog/the-ultimate-guide-to-ethereums-pectra-upgrade?utm_source=chatgpt.com)
+
+---
+
+### ⚙ Key EIPs in Pectra & Their Effects
+
+| EIP | What It Does | Practical Impact |
+|-----|---------------|-------------------|
+| **EIP-7702 (Smart EOAs / Account Abstraction for EOAs)** | Lets regular user wallets (EOAs) temporarily attach code and behave like a smart contract for a transaction.  [oai_citation:3‡Alchemy](https://www.alchemy.com/blog/ethereum-pectra-upgrade-dev-guide-to-11-eips?utm_source=chatgpt.com) | Enables batching, gas-sponsorship, more flexible UX without needing a full smart wallet setup. Some contract checks (like `EXTCODESIZE == 0`) might need adjusting.  [oai_citation:4‡Alchemy](https://www.alchemy.com/blog/ethereum-pectra-upgrade-dev-guide-to-11-eips?utm_source=chatgpt.com) |
+| **EIP-7251 (Max Effective Balance Increase)** | Increases the maximum stake a validator can earn rewards on from 32 ETH up to **2,048 ETH**.  [oai_citation:5‡Datawallet](https://www.datawallet.com/crypto/ethereum-pectra-upgrade-explained?utm_source=chatgpt.com) | Large validators or staking services can consolidate/trust fewer validators, reduce overhead.  [oai_citation:6‡Kraken](https://www.kraken.com/learn/ethereum-pectra-upgrade?utm_source=chatgpt.com) |
+| **EIP-7002** | Allows execution layer triggered withdrawals (validators can initiate exits directly)  [oai_citation:7‡Datawallet](https://www.datawallet.com/crypto/ethereum-pectra-upgrade-explained?utm_source=chatgpt.com) | More control/flexibility for validators and staking services.  [oai_citation:8‡Kraken](https://www.kraken.com/learn/ethereum-pectra-upgrade?utm_source=chatgpt.com) |
+| **EIP-6110** | Validator deposit supply / onboarding modifications (making validator activation smoother)  [oai_citation:9‡Kraken](https://www.kraken.com/learn/ethereum-pectra-upgrade?utm_source=chatgpt.com) | Reduces delays for validators; makes staking more efficient.  [oai_citation:10‡Crypto APIs](https://cryptoapis.io/blog/302-ethereum-pectra-mainnet-launch-on-may-7-2025-timeline-key-changes-and-preparation?utm_source=chatgpt.com) |
+| **EIP-7691 & related rollup/data availability EIPs** | Increases “blob” capacity per block; adjusts “blob vs calldata” cost dynamics; optimizations for data posting.  [oai_citation:11‡Alchemy](https://www.alchemy.com/blog/ethereum-pectra-upgrade-dev-guide-to-11-eips?utm_source=chatgpt.com) | Lower costs for Layer-2 rollups, better network scalability, more predictable fee behavior.  [oai_citation:12‡Alchemy](https://www.alchemy.com/blog/ethereum-pectra-upgrade-dev-guide-to-11-eips?utm_source=chatgpt.com) |
+| **EIP-2537** | BLS12-381 curve precompile support (faster signature ops)  [oai_citation:13‡Kraken](https://www.kraken.com/learn/ethereum-pectra-upgrade?utm_source=chatgpt.com) | Helps proofs, zk-systems, validators, consensus-relevant cryptography to be more efficient.  [oai_citation:14‡Kraken](https://www.kraken.com/learn/ethereum-pectra-upgrade?utm_source=chatgpt.com) |
+| **EIP-2935** | Store historical block hashes in state so contracts/light clients can access past hash values more easily.  [oai_citation:15‡Kraken](https://www.kraken.com/learn/ethereum-pectra-upgrade?utm_source=chatgpt.com) | Improves light client design, randomness, contract logic that needs past block hashes.  [oai_citation:16‡Kraken](https://www.kraken.com/learn/ethereum-pectra-upgrade?utm_source=chatgpt.com) |
+
+---
+
+### 🔍 Impacts & Considerations
+
+- **For developers / dApps:**
+  - Contract logic relying on assumptions about EOAs vs contract accounts may break (because EOAs can have “code” under certain conditions under EIP-7702).  [oai_citation:17‡Alchemy](https://www.alchemy.com/blog/ethereum-pectra-upgrade-dev-guide-to-11-eips?utm_source=chatgpt.com)
+  - Gas-cost profiles may shift (especially around calldata vs blob usage). Optimizing for blobs becomes more important.
+
+- **For users / wallets:**
+  - More UX improvements: batch transactions, sponsored gas, etc.  [oai_citation:18‡Alchemy](https://www.alchemy.com/blog/ethereum-pectra-upgrade-dev-guide-to-11-eips?utm_source=chatgpt.com)
+  - You might see new transaction types in wallets.
+
+- **For validators / staking infrastructure:**
+  - Can stake more per validator (MaxEB).
+  - More efficient onboarding / exit.
+  - Possibly fewer nodes needed if large operators leverage higher stake.
+
+- **Network scaling:**
+  - Blobs capacity increase helps Layer-2 solutions.
+  - Historical data access helps light clients / certain contracts.
+
+---
+
+✅ **In short:** Pectra is a big upgrade that improves staking flexibility, wallet/user experience, rollup throughput, and protocol efficiency. It doesn’t overhaul Ethereum, but adds several foundational features to enable future scaling.  
