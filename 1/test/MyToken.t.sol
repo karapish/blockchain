@@ -27,6 +27,7 @@ pragma solidity ^0.8.20;
  */
 
 import "forge-std/Test.sol";
+
 import "../MyToken.sol";
 
 contract MyTokenTest is Test {
@@ -62,13 +63,13 @@ contract MyTokenTest is Test {
 
     function test_OwnerIsDeployer() public view {
         // The deployer is this test contract; see setUp() notes.
-        assertEq(token.owner(), address(this), "owner should be test contract");
+        assertEq(token._owner(), address(this), "owner should be test contract");
     }
 
     function test_TransferOwnership() public {
         // Transfer ownership to Bob
         token.transferOwnership(bob);
-        assertEq(token.owner(), bob, "owner should be bob");
+        assertEq(token._owner(), bob, "owner should be bob");
 
         // Non-zero address enforced (reverts if zero)
         vm.expectRevert(bytes("zero addr"));

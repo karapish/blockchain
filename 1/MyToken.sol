@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "./logger.sol";
+
 /**
  * BEGINNER NOTES
  * ---------------
@@ -50,7 +52,11 @@ pragma solidity ^0.8.20;
 abstract contract Ownable {
     // PUBLIC VARIABLE:
     // Anyone can read the owner address. Public variables get an auto-generated "owner()" getter.
-    address public owner;
+    address public _owner;
+
+    // INTERNAL VARIABLE:
+    // A constant for the zero address, to save gas on comparisons.
+    address private constant _OWNER_NULL = address(0);
 
     // EVENT:
     // Emitted whenever the owner changes (from previousOwner to newOwner). Helps off-chain tracking.
@@ -65,9 +71,13 @@ abstract contract Ownable {
      * Runs once when the contract is deployed. Sets the initial owner to the deployer (msg.sender).
      * Also emits OwnershipTransferred from address(0) (no previous owner) to the deployer.
      */
-    constructor() {
-        owner = msg.sender;
-        emit OwnershipTransferred(address(0), msg.sender);
+    constructor() payable {
+        Logger.logAddress("msg.sender", msg.sender);
+        Logger.logValue("msg.value", msg.value);
+        Logger.logBytes("msg.data", msg.data);
+
+        _owner = msg.sender;
+        emit OwnershipTransferred(_OWNER_NULL, _owner);
     }
 
     /**
@@ -76,7 +86,7 @@ abstract contract Ownable {
      * If msg.sender is not the owner → revert with NotOwner().
      */
     modifier onlyOwner() {
-        if (msg.sender != owner) revert NotOwner();
+        if (msg.sender != _owner) revert NotOwner();
         _;
     }
 
@@ -87,8 +97,8 @@ abstract contract Ownable {
      */
     function transferOwnership(address newOwner) external onlyOwner {
         require(newOwner != address(0), "zero addr");
-        emit OwnershipTransferred(owner, newOwner);
-        owner = newOwner;
+        emit OwnershipTransferred(_owner, newOwner);
+        _owner = newOwner;
     }
 }
 
