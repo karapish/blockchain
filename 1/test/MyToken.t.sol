@@ -60,7 +60,7 @@ contract MyTokenTest is Test {
 
     /* ===================== OWNERSHIP TESTS ===================== */
 
-    function test_OwnerIsDeployer() public {
+    function test_OwnerIsDeployer() public view {
         // The deployer is this test contract; see setUp() notes.
         assertEq(token.owner(), address(this), "owner should be test contract");
     }
