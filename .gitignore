@@ -2,3 +2,5 @@
 .idea
 data
 lib
+/1/cache
+/1/out
