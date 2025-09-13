@@ -26,7 +26,7 @@ pragma solidity ^0.8.20;
  *  - If your MyToken contract is not in the same folder, adjust the import path below.
  */
 
-import "../../lib/forge-std/src/Test.sol";
+import "forge-std/Test.sol";
 import "../main1.sol"; // Adjust path if your contract lives elsewhere (e.g., import "../src/main1.sol";)
 
 contract MyTokenTest is Test {
