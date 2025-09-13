@@ -1,23 +1,28 @@
 services:
-  geth_archive:
+  geth:
     image: ethereum/client-go:stable
-    container_name: geth-archive
+    container_name: geth-execution
     restart: unless-stopped
     ports:
+      - "8551:8551"
+      - "8545:8545"
+      - "8546:8546"
       - "30303:30303"
       - "30303:30303/udp"
-      - "8545:8545"    # HTTP RPC
-      - "8546:8546"    # WebSocket
     volumes:
       - ./data/geth:/root/.ethereum
+      - ./jwt.hex:/root/.ethereum/jwtsecret
     command:
-      - --syncmode=full
+      - --syncmode=snap
       - --gcmode=archive
       - --state.scheme=hash
       - --http
       - --http.addr=0.0.0.0
-      - --http.api=eth,net,web3
+      - --http.api=eth,net,web3,admin,debug,txpool,miner
       - --ws
       - --ws.addr=0.0.0.0
-      - --ws.api=eth,net,web3
-      - --cache=32000    # adjust based on your RAM
+      - --ws.api=eth,net,web3,admin,debug,txpool,miner
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --authrpc.jwtsecret=/root/.ethereum/jwtsecret
+      - --cache=32000
