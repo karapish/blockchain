@@ -5,7 +5,7 @@ import "./ownable.sol";
 
 /* =========================  ERC20  ========================= */
 /**
- * MyToken is a minimal ERC-20-style token implementation.
+ * ERC20Token.sol is a minimal ERC-20-style token implementation.
  * It does not include every optional feature of the standard, but it covers:
  * - balanceOf: how many tokens each address has.
  * - totalSupply: total number of tokens in existence.
@@ -19,7 +19,7 @@ import "./ownable.sol";
  * - name and symbol are set in the constructor.
  * - decimals is a constant 18 (like ETH), so 1 token = 10^18 "smallest units".
  */
-contract MyToken is Ownable {
+contract ERC20Token is Ownable {
     // Basic token metadata
     string public name;                         // e.g., "My Token"
     string public symbol;                       // e.g., "MYT"
@@ -46,7 +46,7 @@ contract MyToken is Ownable {
     /**
      * CONSTRUCTOR:
      * Provide token name and symbol when deploying.
-     * Example: new MyToken("My Token", "MYT");
+     * Example: new ERC20Token.sol("My Token", "MYT");
      * NOTE: We don't do an initial mint here; you can add one if desired.
      */
     constructor(string memory _name, string memory _symbol) {

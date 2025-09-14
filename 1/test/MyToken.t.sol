@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 /**
  * BEGINNER NOTES
  * ---------------
- * This is a Forge test file for your ERC-20 + Ownable token (MyToken).
+ * This is a Forge test file for your ERC-20 + Ownable token (ERC20Token.sol).
  *
  * How to run:
  *  1) anvil            # optional, if you want a local node (not required for `forge test`)
@@ -14,7 +14,7 @@ pragma solidity ^0.8.20;
  *  - We import forge-std/Test.sol for handy testing helpers:
  *      - assertEq, assertTrue, etc.
  *      - vm.* cheatcodes: expectRevert, expectEmit, prank, etc.
- *  - We deploy MyToken in setUp() so each test starts from a clean state.
+ *  - We deploy ERC20Token.sol in setUp() so each test starts from a clean state.
  *  - We test:
  *      • Ownership and onlyOwner restrictions
  *      • Minting, burning (self + owner burnFrom)
@@ -23,12 +23,12 @@ pragma solidity ^0.8.20;
  *      • Events are emitted correctly
  *
  * Path import:
- *  - Contract under test is one directory up from test/ (../MyToken.sol).
+ *  - Contract under test is one directory up from test/ (../ERC20Token.sol).
  */
 
 import "forge-std/Test.sol";
 
-import "../MyToken.sol";
+import "../ERC20Token.sol";
 
 contract MyTokenTest is Test {
     // Mirror the token's events locally so we can `emit` them in expectEmit checks
@@ -36,7 +36,7 @@ contract MyTokenTest is Test {
     event Approval(address indexed owner, address indexed spender, uint256 value);
 
     // The token under test
-    MyToken internal token;
+    ERC20Token internal token;
 
     // Deterministic helper addresses from forge-std
     address internal alice = makeAddr("alice");
@@ -50,10 +50,10 @@ contract MyTokenTest is Test {
     /**
      * setUp() runs before each test function.
      * - In Forge tests, the "deployer" (msg.sender in the constructor) is the test contract itself (address(this)).
-     * - This test contract will be the owner of MyToken.
+     * - This test contract will be the owner of ERC20Token.sol.
      */
     function setUp() public {
-        token = new MyToken("My Token", "MYT");
+        token = new ERC20Token("My Token", "MYT");
 
         // As the owner (this contract), mint 100 tokens to Alice.
         token.mint(alice, HUNDRED);
@@ -132,7 +132,7 @@ contract MyTokenTest is Test {
     function test_Revert_Transfer_InsufficientBalance() public {
         // Bob initially has 0; sending 1 should revert
         vm.prank(bob);
-        vm.expectRevert(MyToken.InsufficientBalance.selector);
+        vm.expectRevert(ERC20Token.InsufficientBalance.selector);
         token.transfer(eve, ONE);
     }
 
@@ -176,7 +176,7 @@ contract MyTokenTest is Test {
     function test_Revert_TransferFrom_InsufficientAllowance() public {
         // No approval given yet → should revert
         vm.prank(bob);
-        vm.expectRevert(MyToken.InsufficientAllowance.selector);
+        vm.expectRevert(ERC20Token.InsufficientAllowance.selector);
         token.transferFrom(alice, eve, ONE);
     }
 
@@ -228,7 +228,7 @@ contract MyTokenTest is Test {
     function test_Revert_Burn_InsufficientBalance() public {
         // Bob has 0; attempting to burn should revert
         vm.prank(bob);
-        vm.expectRevert(MyToken.InsufficientBalance.selector);
+        vm.expectRevert(ERC20Token.InsufficientBalance.selector);
         token.burn(ONE);
     }
 

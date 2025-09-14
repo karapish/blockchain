@@ -8,7 +8,7 @@
  *    - The `onlyOwner` modifier restricts certain functions so only the owner can call them.
  *    - The owner can transfer ownership to a new address later.
  *
- * 2) MyToken (a minimal ERC-20-like token):
+ * 2) ERC20Token.sol (a minimal ERC-20-like token):
  *    - Keeps track of balances (who owns how many tokens).
  *    - Allows token transfers (`transfer`) and delegated transfers (`approve` + `transferFrom`).
  *    - Allows the owner to mint (create) new tokens.
@@ -34,7 +34,7 @@
  * -------------
  * Read this file top-to-bottom:
  * - First understand Ownable (very short).
- * - Then read MyToken storage variables, constructor, and functions one by one.
+ * - Then read ERC20Token.sol storage variables, constructor, and functions one by one.
  */
 
 /// @title Ownable + ERC20 (mint/burn) — from scratch, single file
@@ -105,6 +105,6 @@ abstract contract Ownable {
         require(newOwner != OwnerAddressNull, OwnerAddressNullMsg);
         address oldOwner = Owner;
         Owner = newOwner;
-        emit OwnershipTransferred(oldOwner, newOwner);
+        emit OwnershipTransferred(oldOwner, Owner);
     }
 }
