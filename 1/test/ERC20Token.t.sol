@@ -30,7 +30,7 @@ import "forge-std/Test.sol";
 
 import "../ERC20Token.sol";
 
-contract MyTokenTest is Test {
+contract ERC20TokenTest is Test {
     // Mirror the token's events locally so we can `emit` them in expectEmit checks
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
