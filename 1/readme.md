@@ -340,3 +340,272 @@ Execution Flow:
 3.	Function body executes → locked = true.
 
 👉 Order matters: onlyOwner notLocked is not the same as notLocked onlyOwner.
+
+Solidity Data Locations: storage, memory, calldata
+| Keyword     | Lifetime                  | Typical use                                   |
+|-------------|---------------------------|-----------------------------------------------|
+| `storage`   | Permanent (on-chain state)| State variables, mappings, arrays in state    |
+| `memory`    | Temporary (per call)      | Local variables, return values                |
+| `calldata`  | Temporary (read-only)     | External function parameters (cheapest)       |
+| (no keyword)| Context-dependent         | Defaults: state vars → `storage`, locals → `memory` |
+|             |                           |                                               |
+
+```
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+contract Example {
+    string public stored = "Hello"; // STORAGE (permanent)
+
+    // Uses calldata (read-only, cheap)
+    function updateMessage(string calldata newMessage) external {
+        stored = newMessage; // copies calldata → storage
+    }
+
+    // Uses memory (temporary copy)
+    function readMessage() external view returns (string memory) {
+        return stored; // copies storage → memory
+    }
+}
+```
+Yes ✅
+Block explorers like **Etherscan** can read contract storage state because:
+
+- All contract storage lives in Ethereum’s **global state trie**.
+- Anyone can query it via **JSON-RPC** (`eth_getStorageAt`) if they know the slot.
+- For **verified contracts**, explorers also know variable layouts (from Solidity metadata), so they show human-readable values (e.g., balances, owner address).
+- For **unverified contracts**, explorers only show raw storage slots in hex.
+
+👉 So yes, explorers can see storage, but **readability depends on whether the contract source is verified**.
+
+
+### ✅ What "Verified Contract" Means on Etherscan
+
+When a contract is **verified** on Etherscan:
+
+1. **Source Code + Compiler Settings Uploaded**
+  - Developer provides Solidity source + compiler version + optimization settings.
+  - Etherscan recompiles it and ensures the bytecode matches the one deployed on-chain.
+
+2. **ABI & Storage Layout Derived**
+  - From the verified source, Etherscan extracts the ABI.
+  - It also maps variables to their storage slots, making state human-readable.
+
+---
+
+### 🔍 What You See
+
+- **Verified Contract**
+  - Readable source code.
+  - Named functions & events.
+  - Storage values decoded into variables (e.g., `balances[address] = 100`).
+  - Interactive UI to call functions.
+
+- **Unverified Contract**
+  - Only raw bytecode & opcodes.
+  - Storage shown as raw hex (`0xdeadbeef...`).
+  - Function calls appear as `Unknown Function` with calldata hex.
+
+---
+
+👉 Uploading *only* the ABI is **not enough**.  
+Full **source code + metadata** = verification.  
+
+### 🔑 Who Initiates Contract Verification?
+
+- The **contract deployer or project team** usually initiates verification.
+
+---
+
+### ⚙️ How It Works
+1. Developer deploys the smart contract.
+2. Developer uploads the **source code + compiler settings** to Etherscan (or another explorer).
+3. Etherscan **recompiles the code** with those settings.
+4. If the recompiled bytecode matches the deployed bytecode → ✅ **Verified**.
+
+---
+
+### 📌 Notes
+- **Anyone** could attempt verification, but they must have the **exact source code and compiler settings**.
+- In practice, it’s almost always the **project team**, since they control the codebase.
+
+---
+
+👉 Without verification, users only see:
+- Raw bytecode
+- Hex storage
+- Unknown functions/events
+
+With verification, users get:
+- Readable functions & events
+- Decoded storage
+- Safer interaction (UI provided by Etherscan)  
+
+
+### 🔑 Using `onlyOwner` with Different Visibilities
+
+The `onlyOwner` modifier works with any function visibility.  
+You choose the visibility (`public`, `private`, `internal`, `external`) depending on **who can call** the function.
+
+---
+
+#### 1. `external`
+Callable only from **outside the contract** (EOA or another contract).
+```
+function transferOwnership(address newOwner) external onlyOwner {
+    owner = newOwner;
+}
+```
+
+#### 2. public
+Callable from outside and inside the same contract.
+```
+function transferOwnership(address newOwner) public onlyOwner {
+    owner = newOwner;
+}
+```
+
+#### 3. internal
+Callable only from inside the same contract or derived contracts.
+```
+function transferOwnership(address newOwner) internal onlyOwner {
+    owner = newOwner;
+}
+```
+
+### 4. private
+Callable only from inside the same contract (not derived contracts).
+```
+function transferOwnership(address newOwner) private onlyOwner {
+    owner = newOwner;
+}
+```
+
+✅ Summary
+- function → for normal methods.
+- constructor → one-time setup on deployment.
+- fallback → catches unknown calls or data.
+- receive → handles plain ETH transfers.
+
+# ✅ How Wallets Call Smart Contract Functions
+
+Yes, that’s the flow:
+
+---
+
+## 1. Pick the Function
+- Example: `transfer(address to, uint256 amount)`
+- This is usually an **external** function (contracts are called from outside).
+
+---
+
+## 2. ABI Encode Calldata
+- Function signature → hashed → first 4 bytes = **function selector**.
+- Parameters → ABI-encoded (e.g., address padded to 32 bytes, amount padded).
+- Together, this forms the transaction’s **data field**.
+
+---
+
+## 3. Sign the Transaction
+- Your wallet builds the tx:
+  - nonce
+  - gas
+  - `to` (contract address)
+  - `value` (ETH, if any)
+  - `data` (ABI-encoded function call)
+- Signs with your **private key**, producing a valid signature.
+
+---
+
+## 4. Broadcast
+- The signed transaction is sent to the Ethereum **mempool**.
+
+---
+
+## 5. Execution (EL Client)
+- Validators (post-Merge) or miners (pre-Merge) **decode calldata**.
+- They see: *“call function X on contract Y with params Z.”*
+- They **re-run the function** with your calldata → state changes are applied.
+
+---
+
+## 🔑 Key Point
+- **public** functions → can be called internally (by the contract itself) or externally (by EOAs/contracts).
+- **external** functions → optimized for calls from outside.
+- Both rely on **calldata** → ABI-encoded params sent with the tx.
+
+# 🔑 How Wallets Know Function Signatures (ABI Decoding)
+
+Wallets (MetaMask, Coinbase Wallet, etc.) rely on **ABIs** to understand what functions exist in a contract.  
+Here’s the algorithm they follow:
+
+---
+
+## 1. Standard ABIs
+- For **well-known standards** (ERC-20, ERC-721, etc.), wallets already have the ABI built-in.
+- Example: `transfer(address,uint256)` is part of ERC-20, so wallets can always show **“Send Token”**.
+
+---
+
+## 2. Verified Contracts
+- If a contract is **verified on Etherscan**, its ABI and source are public.
+- Wallets (or dapps) can fetch the ABI from **Etherscan APIs**.
+
+---
+
+## 3. Custom Contracts / Dapps
+- When you use a **DeFi dapp** or custom app, the frontend encodes the call using the ABI (via `ethers.js` or `web3.js`).
+- The wallet just asks you to **sign** the transaction.
+- Example: frontend encodes `stake(1000)` into calldata → wallet shows **“Stake 1000 tokens”**.
+
+---
+
+## 4. Unknown Contracts
+- If no ABI is available, the wallet only sees **raw calldata** (`0xa9059cbb...`).
+- In this case, it shows **“Contract Interaction”** instead of the function name.
+
+---
+
+## ⚡ Example: ERC-20 Transfer
+- Function: `transfer(address,uint256)`
+- Function selector: `0xa9059cbb` (first 4 bytes of `keccak256("transfer(address,uint256)")`)
+- Wallet with ABI → shows **“Transfer 100 tokens to 0xabc…”**.
+- Wallet without ABI → shows **“Contract Interaction”**.
+
+---
+
+## ✅ Summary
+Wallets decode calldata using:
+1. **Hardcoded ABIs** for popular standards.
+2. **Fetched ABIs** from explorers (Etherscan).
+3. **ABIs provided by dapps**.
+4. Otherwise, fallback → raw calldata only.  
+
+
+# Sending ETH from One EOA to Another (No Smart Contract)
+
+When you send ETH directly (EOA → EOA):
+
+1. **Transaction Construction**
+  - `to` = recipient EOA address.
+  - `value` = amount of ETH to transfer.
+  - `data` = empty (no calldata, since no contract).
+  - `nonce`, `gas`, and `gasPrice`/`maxFee` set by wallet.
+
+2. **Signing**
+  - Wallet signs the tx with your **private key**.
+  - Produces a valid cryptographic signature.
+
+3. **Broadcast**
+  - Signed tx sent to the **mempool**.
+
+4. **Execution**
+  - Validator/miner includes it in a block.
+  - Ethereum simply subtracts ETH from `msg.sender` balance, adds to `to` balance.
+
+---
+
+## 🔑 Key Difference
+- **No calldata / ABI / function selector** → it’s just ETH value transfer.
+- **Gas cost is minimal** (basic 21,000 gas).
+- State change = only balances updated in Ethereum’s state trie.  
