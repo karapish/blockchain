@@ -63,18 +63,18 @@ contract MyTokenTest is Test {
 
     function test_OwnerIsDeployer() public view {
         // The deployer is this test contract; see setUp() notes.
-        assertEq(token._owner(), address(this), "owner should be test contract");
+        assertEq(token.Owner(), address(this), "owner should be test contract");
     }
 
     function test_TransferOwnership() public {
         // Transfer ownership to Bob
         token.transferOwnership(bob);
-        assertEq(token._owner(), bob, "owner should be bob");
+        assertEq(token.Owner(), bob, "owner should be bob");
 
         // Non-zero address enforced (reverts if zero)
-        vm.expectRevert(bytes(token.getOwnerNullMessage()));
+        vm.expectRevert(bytes(token.OwnerAddressNullMsg()));
         vm.prank(bob); // make the next call come from Bob
-        token.transferOwnership(address(0));
+        token.transferOwnership(token.OwnerAddressNull());
     }
 
     function test_Revert_Mint_When_NotOwner() public {

@@ -56,18 +56,16 @@ import "./logger.sol";
 •	Other contracts inherit from it and must implement those missing functions.
 */
 abstract contract Ownable {
-    // PUBLIC VARIABLE:
-    // Anyone can read the owner address. Public variables get an auto-generated "owner()" getter.
-    address public _owner; // cannot be immutable because we allow ownership transfer
+    // PUBLIC VARIABLES:
 
-    // INTERNAL VARIABLE:
     // A constant for the zero address, to save gas on comparisons.
-    address private constant _OWNER_NULL = address(0); // compile time assignment
+    address public OwnerAddressNull = address(0); // compile time assignment
 
-    string private OWNER_NULL_MESSAGE = "null owner";
-    function getOwnerNullMessage() external view returns (string memory) {
-        return OWNER_NULL_MESSAGE;
-    }
+    // Anyone can read the owner address. Public variables get an auto-generated "owner()" getter.
+    address public Owner = OwnerAddressNull; // cannot be immutable because we allow ownership transfer
+
+    // A constant error message for require statements (saves gas vs inline strings).
+    string public OwnerAddressNullMsg = "null owner";
 
     // EVENT:
     // Emitted whenever the owner changes (from previousOwner to newOwner). Helps off-chain tracking.
@@ -87,8 +85,8 @@ abstract contract Ownable {
         Logger.logValue("msg.value", msg.value); // stores how much ETH was sent at deploy (payable)
         Logger.logBytes("msg.data", msg.data);
 
-        _owner = msg.sender;
-        emit OwnershipTransferred(_OWNER_NULL, _owner);
+        Owner = msg.sender;
+        emit OwnershipTransferred(OwnerAddressNull, Owner);
     }
 
     /**
@@ -97,7 +95,7 @@ abstract contract Ownable {
      * If msg.sender is not the owner → revert with NotOwner().
      */
     modifier onlyOwner() {
-        if (msg.sender != _owner) revert NotOwner();
+        if (msg.sender != Owner) revert NotOwner();
         _;
     }
 
@@ -107,9 +105,9 @@ abstract contract Ownable {
      * We forbid setting owner to address(0) because that would "lock" the contract without an owner.
      */
     function transferOwnership(address newOwner) external onlyOwner {
-        require(newOwner != _OWNER_NULL, OWNER_NULL_MESSAGE);
-        _owner = newOwner;
-        emit OwnershipTransferred(_owner, newOwner);
+        require(newOwner != OwnerAddressNull, OwnerAddressNullMsg);
+        Owner = newOwner;
+        emit OwnershipTransferred(Owner, newOwner);
     }
 }
 
