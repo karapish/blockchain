@@ -237,3 +237,106 @@ This makes it plug-and-play with wallets, exchanges, and dApps in the Ethereum e
     - Attempting to mint/burnFrom as non-owner reverts.
 
 ---
+
+🔹 Non-Payable Constructor
+
+A non-payable constructor does not accept ETH during deployment.
+If someone tries to send ETH while deploying, the transaction will revert.
+
+```
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+contract PayableExample {
+uint256 public amount;
+
+    constructor() payable {
+        // Contract can receive ETH here
+        amount = msg.value; // stores how much ETH was sent at deploy
+    }
+}
+```
+
+
+🔹 Payable Constructor
+
+A payable constructor allows the contract to receive ETH at deployment.
+The received ETH will be stored in the contract’s balance.
+
+```
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+contract PayableExample {
+    uint256 public amount;
+
+    constructor() payable {
+        // Contract can receive ETH here
+        amount = msg.value; // stores how much ETH was sent at deploy
+    }
+}
+```
+
+🔹 Forward ETH on Deploy
+You can even deploy a contract and instantly forward the ETH it receives to another wallet or contract.
+
+```
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+contract ForwardOnDeploy {
+    address payable public recipient;
+
+    constructor(address payable _recipient) payable {
+        recipient = _recipient;
+
+        // Forward any ETH sent on deployment to recipient
+        if (msg.value > 0) {
+            recipient.transfer(msg.value);
+        }
+    }
+}
+```
+
+🔹 Example with Two Modifiers
+
+Modifiers act like wrappers around function execution.
+Here, we use onlyOwner and notLocked modifiers.
+
+```aiignore
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+contract MultiModifier {
+    address public owner;
+    bool public locked;
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    // Modifier 1: only owner can call
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _; // continue execution
+    }
+
+    // Modifier 2: function not locked
+    modifier notLocked() {
+        require(!locked, "Function locked");
+        _; // continue execution
+    }
+
+    // Function with 2 modifiers
+    function doSomething() external onlyOwner notLocked {
+        // This runs only if both checks passed
+        locked = true;
+    }
+}
+```
+Execution Flow:
+1.	onlyOwner check runs → must be owner.
+2.	notLocked check runs → must not be locked.
+3.	Function body executes → locked = true.
+
+👉 Order matters: onlyOwner notLocked is not the same as notLocked onlyOwner.

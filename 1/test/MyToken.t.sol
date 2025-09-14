@@ -72,7 +72,7 @@ contract MyTokenTest is Test {
         assertEq(token._owner(), bob, "owner should be bob");
 
         // Non-zero address enforced (reverts if zero)
-        vm.expectRevert(bytes("zero addr"));
+        vm.expectRevert(bytes(token.getOwnerNullMessage()));
         vm.prank(bob); // make the next call come from Bob
         token.transferOwnership(address(0));
     }

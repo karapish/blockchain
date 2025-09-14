@@ -49,14 +49,25 @@ import "./logger.sol";
  * Ownable is a small helper that stores a privileged address (the "owner").
  * Use cases: admin-only functions like minting, pausing, upgrading, etc.
  */
+
+/* An abstract contract in Solidity is like a blueprint:
+•	It cannot be deployed on its own.
+•	It usually has one or more functions without implementation (like “to-do” functions).
+•	Other contracts inherit from it and must implement those missing functions.
+*/
 abstract contract Ownable {
     // PUBLIC VARIABLE:
     // Anyone can read the owner address. Public variables get an auto-generated "owner()" getter.
-    address public _owner;
+    address public _owner; // cannot be immutable because we allow ownership transfer
 
     // INTERNAL VARIABLE:
     // A constant for the zero address, to save gas on comparisons.
-    address private constant _OWNER_NULL = address(0);
+    address private constant _OWNER_NULL = address(0); // compile time assignment
+
+    string private OWNER_NULL_MESSAGE = "null owner";
+    function getOwnerNullMessage() external view returns (string memory) {
+        return OWNER_NULL_MESSAGE;
+    }
 
     // EVENT:
     // Emitted whenever the owner changes (from previousOwner to newOwner). Helps off-chain tracking.
@@ -73,7 +84,7 @@ abstract contract Ownable {
      */
     constructor() payable {
         Logger.logAddress("msg.sender", msg.sender);
-        Logger.logValue("msg.value", msg.value);
+        Logger.logValue("msg.value", msg.value); // stores how much ETH was sent at deploy (payable)
         Logger.logBytes("msg.data", msg.data);
 
         _owner = msg.sender;
@@ -96,9 +107,9 @@ abstract contract Ownable {
      * We forbid setting owner to address(0) because that would "lock" the contract without an owner.
      */
     function transferOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "zero addr");
-        emit OwnershipTransferred(_owner, newOwner);
+        require(newOwner != _OWNER_NULL, OWNER_NULL_MESSAGE);
         _owner = newOwner;
+        emit OwnershipTransferred(_owner, newOwner);
     }
 }
 
