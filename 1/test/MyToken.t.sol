@@ -67,14 +67,22 @@ contract MyTokenTest is Test {
     }
 
     function test_TransferOwnership() public {
-        // Transfer ownership to Bob
+        // ✅ Case 1: Owner can transfer to Bob
         token.transferOwnership(bob);
         assertEq(token.Owner(), bob, "owner should be bob");
+    }
 
-        // Non-zero address enforced (reverts if zero)
+    function test_RevertIfNotOwnerTransfers() public {
+        // ✅ Case 2: Bob is not the owner → should revert with NotOwner
+        vm.expectRevert(Ownable.NotOwner.selector);
+        vm.prank(bob);
+        token.transferOwnership(alice);
+    }
+
+    function test_RevertIfTransferToZeroAddress() public {
+        // ✅ Case 3: Owner tries to transfer to 0x0 → should revert with "null owner"
         vm.expectRevert(bytes(token.OwnerAddressNullMsg()));
-        vm.prank(bob); // make the next call come from Bob
-        token.transferOwnership(token.OwnerAddressNull());
+        token.transferOwnership(address(0));
     }
 
     function test_Revert_Mint_When_NotOwner() public {

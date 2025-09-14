@@ -56,13 +56,13 @@ abstract contract Ownable {
     // PUBLIC VARIABLES:
 
     // A constant for the zero address, to save gas on comparisons.
-    address public OwnerAddressNull = address(0); // compile time assignment
+    address public constant OwnerAddressNull = address(0); // compile time assignment
 
     // Anyone can read the owner address. Public variables get an auto-generated "owner()" getter.
     address public Owner = OwnerAddressNull; // cannot be immutable because we allow ownership transfer
 
     // A constant error message for require statements (saves gas vs inline strings).
-    string public OwnerAddressNullMsg = "null owner";
+    string public constant OwnerAddressNullMsg = "null owner";
 
     // EVENT:
     // Emitted whenever the owner changes (from previousOwner to newOwner). Helps off-chain tracking.
@@ -103,7 +103,8 @@ abstract contract Ownable {
      */
     function transferOwnership(address newOwner) external onlyOwner {
         require(newOwner != OwnerAddressNull, OwnerAddressNullMsg);
+        address oldOwner = Owner;
         Owner = newOwner;
-        emit OwnershipTransferred(Owner, newOwner);
+        emit OwnershipTransferred(oldOwner, newOwner);
     }
 }
