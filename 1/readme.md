@@ -715,5 +715,10 @@ CONTRACT ON-CHAIN QA
 forge test --match-contract ERC20TokenOnchainTest --rpc-url http://127.0.0.1:8545
 ```
 
+CONTRACT LOCAL QA
+```
+forge test -vv --match-contract ERC20TokenTest
+```
+
 
   
