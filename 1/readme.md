@@ -609,3 +609,97 @@ When you send ETH directly (EOA → EOA):
 - **No calldata / ABI / function selector** → it’s just ETH value transfer.
 - **Gas cost is minimal** (basic 21,000 gas).
 - State change = only balances updated in Ethereum’s state trie.  
+
+# 🔹 Solidity Data Types
+
+| Category        | Type / Keyword                  | Example                                                   |
+|-----------------|---------------------------------|-----------------------------------------------------------|
+| **Value Types** | `bool`                          | `bool isActive = true;`                                  |
+|                 | `uint` / `int` (sizes: 8–256)   | `uint256 balance = 1000; int8 x = -5;`                   |
+|                 | `fixed`, `ufixed` ❌ unsupported | `// Not usable (reserved keyword)`                       |
+|                 | `address`                       | `address owner = 0xAb...;`                               |
+|                 | `address payable`               | `address payable wallet = payable(msg.sender);`          |
+|                 | `bytes1` … `bytes32`            | `bytes32 hash = keccak256("hello");`                     |
+|                 | `enum`                          | `enum Status { Active, Inactive } Status s = Status.Active;` |
+|                 | Function type                   | `function(uint) external returns (bool)`                 |
+| **Reference**   | Dynamic array                   | `uint[] numbers = [1,2,3];`                              |
+|                 | Fixed-size array                | `uint[3] nums = [1,2,3];`                                |
+|                 | Dynamic `bytes`                 | `bytes data = "abc";`                                    |
+|                 | `string`                        | `string name = "Alice";`                                 |
+|                 | `struct`                        | `struct User {string name; uint age;} User u = User("Bob", 30);` |
+|                 | `mapping`                       | `mapping(address => uint) public balances;`              |
+| **Special**     | `mapping` (assoc. storage only) | `mapping(uint => address) owners;`                       |
+|                 | `struct` (custom type)          | *(see above)*                                             |
+|                 | `contract`                      | `MyContract c = new MyContract();`                       |
+|                 | `interface`                     | `interface IERC20 { function transfer(address,uint) external; }` |
+|                 | `library`                       | `using SafeMath for uint256;`                            |
+| **Location**    | `storage`                       | `uint[] storage arr = myArray;`                          |
+|                 | `memory`                        | `uint ;`                     |
+|                 | `calldata`                      | `function foo(uint[] calldata arr) external {}`          |
+
+---
+
+✅ **Summary:** Solidity supports `bool`, `int/uint`, `address`, `bytes`, `string`, arrays, enums, structs, mappings, contracts, interfaces, libraries, and function types. For decimals, you simulate with scaled `uint` instead of `fixed`.
+
+
+# Fixed & Bytes Types in Solidity
+
+---
+
+## 1. Fixed-Point Numbers (`fixed` / `ufixed`)
+- **Signed (`fixedXxY`)** and **unsigned (`ufixedXxY`)** fixed-point decimals.
+- **Status**: ❌ **Not fully supported** in Solidity yet (only reserved keywords).
+- You cannot use them in production code.
+
+**Example (not supported):**
+```solidity
+// Not usable yet
+fixed128x18 a = 1.5;   // 128 bits total, 18 decimals
+ufixed64x10 b = 3.14;
+```
+
+# Solidity Fixed-Size Byte Arrays (`bytes1` … `bytes32`)
+
+---
+
+## What They Are
+- `bytes1` through `bytes32` are **fixed-size byte arrays**.
+- Each stores exactly `N` bytes (1 to 32).
+- They are value types, cheaper and more efficient than dynamic `bytes`.
+
+---
+
+## Syntax
+```solidity
+bytes1 a = 0x12;                         // 1 byte
+bytes4 b = 0x12345678;                   // 4 bytes
+bytes32 c = keccak256("hello world");    // 32 bytes (common for hashes)
+```
+
+# Why use `unchecked` in Solidity?
+
+---
+
+## Background
+- Since Solidity **0.8.0**, all arithmetic (`+`, `-`, `*`) has **built-in overflow and underflow checks**.
+- If `a - b` would go below `0`, or `a + b` would exceed `2^256 - 1`, the transaction automatically **reverts**.
+- This is safe, but adds **extra gas cost**.
+
+---
+
+## `unchecked { ... }`
+- A Solidity block where arithmetic **skips these automatic checks**.
+- Used when the developer already proved that overflows/underflows **cannot happen**.
+- Saves gas (roughly ~20–40 gas per operation).
+
+---
+
+## Example from your snippet
+```solidity
+unchecked {
+    balanceOf[from] = bal - value; // safe because we required bal >= value
+    balanceOf[to]   += value;      // safe because overflow is practically impossible
+}
+```
+
+  

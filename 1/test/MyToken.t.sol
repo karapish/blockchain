@@ -125,7 +125,7 @@ contract MyTokenTest is Test {
 
     function test_Revert_Transfer_ToZero() public {
         vm.prank(alice);
-        vm.expectRevert(bytes("transfer to zero"));
+        vm.expectRevert(bytes(token.OwnerAddressNullMsg()));
         token.transfer(address(0), ONE);
     }
 

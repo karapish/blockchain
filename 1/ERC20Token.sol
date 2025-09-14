@@ -26,7 +26,7 @@ contract ERC20Token is Ownable {
     uint8  public immutable decimals = 18;      // fixed to 18 to mimic ETH-like units
 
     // SUPPLY + ACCOUNTING
-    uint256 public totalSupply;                 // sum of all balances
+    uint256 public totalSupply;                   // sum of all balances
     mapping(address => uint256) public balanceOf; // balanceOf[user] = how many tokens user owns
 
     // ALLOWANCES:
@@ -155,7 +155,7 @@ contract ERC20Token is Ownable {
      * - Must emit Transfer(from, to, value) as per ERC-20.
      */
     function _transfer(address from, address to, uint256 value) internal {
-        require(to != address(0), "transfer to zero");
+        require(to != OwnerAddressNull, OwnerAddressNullMsg);
         uint256 bal = balanceOf[from];
         if (bal < value) revert InsufficientBalance();
 
@@ -176,10 +176,10 @@ contract ERC20Token is Ownable {
      * - Emit Transfer(address(0), to, value) to signal a mint (ERC-20 convention).
      */
     function _mint(address to, uint256 value) internal {
-        require(to != address(0), "mint to zero");
+        require(to != OwnerAddressNull, OwnerAddressNullMsg);
         totalSupply += value;
         balanceOf[to] += value;
-        emit Transfer(address(0), to, value);
+        emit Transfer(OwnerAddressNull, to, value);
     }
 
     /**
@@ -198,6 +198,6 @@ contract ERC20Token is Ownable {
             balanceOf[from] = bal - value; // safe after check
             totalSupply -= value;          // reduce global supply
         }
-        emit Transfer(from, address(0), value);
+        emit Transfer(from, OwnerAddressNull, value);
     }
 }
