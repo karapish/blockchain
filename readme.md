@@ -2300,3 +2300,71 @@ forge validate-upgrade
 
 **Summary:**  
 `forge validate-upgrade` won’t work without the OZ plugin. Use Hardhat/Foundry with the official OpenZeppelin Upgrades tools.
+
+
+## Common EVM Testnets & Their Mainnets
+
+- **Sepolia**  
+  Chain ID: `11155111`  
+  *Mainnet:* Ethereum
+
+- **Arbitrum Sepolia**  
+  Chain ID: `421614`  
+  *Mainnet:* Arbitrum One
+
+- **Base Sepolia**  
+  Chain ID: `84532`  
+  *Mainnet:* Base
+
+- **Polygon Amoy**  
+  Chain ID: `80002`  
+  *Mainnet:* Polygon PoS
+
+- **Polygon zkEVM Cardona**  
+  Chain ID: `2442`  
+  *Mainnet:* Polygon zkEVM
+
+- **BSC Testnet**  
+  Chain ID: `97`  
+  *Mainnet:* BNB Smart Chain (BSC)
+
+- **OP Sepolia**  
+  Chain ID: `11155420`  
+  *Mainnet:* Optimism (OP Mainnet)
+
+- **Avalanche Fuji C-Chain**  
+  Chain ID: `43113`  
+  *Mainnet:* Avalanche C-Chain
+
+- **Linea Sepolia**  
+  Chain ID: `59141`  
+  *Mainnet:* Linea
+
+- **Scroll Sepolia**  
+  Chain ID: `534351`  
+  *Mainnet:* Scroll
+
+- **ZkSync Era Sepolia**  
+  Chain ID: `300`  
+  *Mainnet:* zkSync Era
+
+- **Monad Testnet**  
+  Chain ID: `10143`  
+  *Mainnet:* Monad
+
+> **FYI:**  
+> These testnets simulate the main networks for safe, free development and testing.
+
+## Difference between ERC and EIP
+
+- **EIP (Ethereum Improvement Proposal):**
+  - A formal proposal for changes or additions to Ethereum.
+  - Can cover any topic: core protocol, networking, contract standards, etc.
+
+- **ERC (Ethereum Request for Comment):**
+  - A *type* of EIP focused on **application-level standards**, especially smart contracts (like ERC-20, ERC-721).
+  - All ERCs are EIPs, but not all EIPs are ERCs.
+
+**Summary:**
+- EIP = general proposal
+- ERC = standard for applications/smart contracts (a subtype of EIP)

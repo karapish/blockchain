@@ -1,4 +1,4 @@
-import "openzeppelin-foundry-upgrades/UpgradeScripts.sol";
+import "openzeppelin-foundry-upgrades/Upgrades.sol";
 
 contract UpgradeTest is UpgradeScripts {
     function run() external {

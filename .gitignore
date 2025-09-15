@@ -2,6 +2,6 @@
 .idea
 data
 lib
-/eth20/cache
-/eth20/out
-/eth20/broadcast
+/erc20/cache
+/erc20/out
+/erc20/broadcast
