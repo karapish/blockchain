@@ -2269,3 +2269,34 @@ It’s about making Ethereum **cheaper and faster for rollups**, while preparing
 - `__gap` size should anticipate future variable additions — too large wastes declaration space, but unused slots don’t cost gas.
 - Mismanaging the gap (e.g., adding variables after the gap, or forgetting to reduce its size) can break the upgrade path.
 - Tools can help catch mistakes in storage layout and gap management.
+
+
+## How `validateUpgrade` Works
+
+- `validateUpgrade` checks that your upgraded contract is storage-compatible with the previous version.
+- It compares storage layout: ensures new variables don’t shift or overwrite existing data.
+- Detects issues like removed/renamed variables, reordering, or inserting before existing state vars.
+- Used in plugins (OpenZeppelin, Foundry) to prevent upgrade bugs before deploying.
+
+**Usage:**  
+Run as part of your upgrade deployment scripts.  
+Example with OpenZeppelin plugin:
+```sh
+npx hardhat validate-upgrade
+```
+or
+```sh
+forge validate-upgrade
+```
+`forge` (Foundry) does **not** have a `validate-upgrade` command built-in.
+
+- `validateUpgrade` is provided by the **OpenZeppelin Upgrades plugin**, not vanilla Foundry.
+- For Foundry, use the [OpenZeppelin Foundry Upgrades plugin](https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades).
+
+**How to use with Foundry:**
+1. Install the OZ Upgrades plugin for Foundry.
+2. Use the scripts/commands from the plugin, not just `forge` alone.
+3. Check plugin docs for upgrade validation commands.
+
+**Summary:**  
+`forge validate-upgrade` won’t work without the OZ plugin. Use Hardhat/Foundry with the official OpenZeppelin Upgrades tools.
