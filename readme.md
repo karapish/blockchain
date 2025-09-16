@@ -2404,3 +2404,73 @@ Short answer: **Yes**, Foundry + Anvil are widely seen as modern, faster alterna
 ---
 
 If you like, I can map out a migration plan from Truffle/Ganache → Foundry/Anvil for your stack.
+
+
+## Does Solidity Support Multiple Inheritance?
+
+**Yes** — Solidity supports multiple inheritance.  [oai_citation:0‡GeeksforGeeks](https://www.geeksforgeeks.org/solidity/solidity-inheritance/?utm_source=chatgpt.com)
+
+---
+
+## How It Works
+
+- You can have a contract inherit from more than one parent contract using the `is` keyword.  [oai_citation:1‡cyfrin.io](https://www.cyfrin.io/glossary/inheritance-solidity-code-example?utm_source=chatgpt.com)
+- Parent contracts can themselves inherit from others (multi‑level inheritance).  [oai_citation:2‡O'Reilly Media](https://www.oreilly.com/library/view/solidity-programming-essentials/9781788831383/394b2e07-5989-495a-b891-bf0e0689b6e9.xhtml?utm_source=chatgpt.com)
+- When you inherit functions from multiple parents that define the same function signature, you must override them in the derived contract and explicitly indicate which parent(s) you’re overriding.  [oai_citation:3‡cyfrin.io](https://www.cyfrin.io/glossary/inheritance-solidity-code-example?utm_source=chatgpt.com)
+
+---
+
+## Rules & Details
+
+- Use `virtual` in parent contracts for functions you expect to be overridden.  [oai_citation:4‡cyfrin.io](https://www.cyfrin.io/glossary/inheritance-solidity-code-example?utm_source=chatgpt.com)
+- Use `override` in child contracts, specifying all parents whose implementation you’re overriding.  [oai_citation:5‡CoinsBench](https://coinsbench.com/multiple-inheritance-in-solidity-835c02eb58cb?utm_source=chatgpt.com)
+- The order you list parent contracts matters. Solidity uses **C3 linearization** to resolve the order in which base contracts are evaluated. The order affects behavior of `super`, constructor order, etc.  [oai_citation:6‡cyfrin.io](https://www.cyfrin.io/glossary/inheritance-solidity-code-example?utm_source=chatgpt.com)
+
+---
+
+## Example
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract A {
+    function foo() public pure virtual returns (string memory) {
+        return "A";
+    }
+}
+contract B is A {
+    function foo() public pure virtual override returns (string memory) {
+        return "B";
+    }
+}
+contract C is A {
+    function foo() public pure virtual override returns (string memory) {
+        return "C";
+    }
+}
+
+// D inherits from B, C: order matters
+contract D is B, C {
+    // override both parents
+    function foo() public pure override(B, C) returns (string memory) {
+        return super.foo();  // calls C.foo() because of inheritance order
+    }
+}
+```
+
+## Why Return Type Is `string memory`
+
+- `string` is a *reference type* in Solidity (like `bytes`, `arrays`, `structs`). You need to specify its data location: `storage`, `memory`, or `calldata`.  [oai_citation:0‡docs.soliditylang.org](https://docs.soliditylang.org/en/latest/types.html?utm_source=chatgpt.com)
+- When a function returns a string, that string is copied out to a temporary location for the caller. `memory` is appropriate because:
+  - It’s not stored permanently on chain.
+  - It’s read‑write within the function, but isn't saved in contract state.  [oai_citation:1‡docs.soliditylang.org](https://docs.soliditylang.org/en/latest/types.html?utm_source=chatgpt.com)
+- `storage` refers to persistent state variables. Returning a `storage` reference would imply the caller could access or modify the contract’s persistent data through that reference, which isn't allowed or supported in many external/public call contexts.  [oai_citation:2‡Ethereum Stack Exchange](https://ethereum.stackexchange.com/questions/107187/confusion-with-memory-vs-storage?utm_source=chatgpt.com)
+- `calldata` is read‑only and tied to input parameters. You can’t use `calldata` for return values except in certain function signatures / visibility contexts; typically return values need to be in `memory`.  [oai_citation:3‡docs.soliditylang.org](https://docs.soliditylang.org/en/latest/types.html?utm_source=chatgpt.com)
+
+---
+
+## Summary
+
+- Use `string memory` for returned strings because the data is temporary (not persistent), needs to be copied out to the caller, and cannot remain in `storage` reference safely.
+- `memory` gives you a correct, safe, and gas‑efficient way to return reference types from functions.  
