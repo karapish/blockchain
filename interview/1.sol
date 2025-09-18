@@ -21,7 +21,6 @@ contract IBKRToken is ERC20, Ownable {
     constructor()
         ERC20("My Token", "MYT")
         Ownable(msg.sender) {
-
     }
 
     function mint(address to, uint256 amount) external onlyOwner {
@@ -50,8 +49,6 @@ Events emitted for notarization and revocation.
 
 💻 Solidity Code (Document Notary)
 
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 

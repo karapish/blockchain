@@ -5,3 +5,6 @@ lib
 /erc20/cache
 /erc20/out
 /erc20/broadcast
+/artifacts
+/interview/cache
+/interview/out
