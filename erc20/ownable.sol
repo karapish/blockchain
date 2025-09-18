@@ -80,8 +80,8 @@ abstract contract Ownable {
      * Also emits OwnershipTransferred from address(0) (no previous owner) to the deployer.
      */
     constructor() payable {
-        Logger.logAddress("msg.sender", msg.sender);
-        Logger.logValue("msg.value", msg.value); // stores how much ETH was sent at deploy (payable)
+        Logger.logAddress("initial owner", msg.sender);
+        Logger.logValue("eth sent", msg.value); // stores how much ETH was sent at deploy (payable)
         Logger.logBytes("msg.data", msg.data);
 
         Owner = msg.sender;
