@@ -19,7 +19,7 @@ contract SimpleOrderBook {
     uint256 public nextOrderId;
     mapping(uint256 => Order) public orders;
 
-    /// @dev Events let off-chain systems (e.g. IBKR frontend) track the book
+    /// @dev Events let off-chain systems (e.g. frontend) track the book
     event OrderPlaced(
         uint256 id,
         address indexed trader,

@@ -3294,3 +3294,194 @@ No silver bullet exists. Combine:
 
 
 ![img.png](img.png)
+
+
+# 🌐 Fundamental Differences: Ethereum vs Corda vs Solana
+
+## Ethereum
+- **Type:** Public, permissionless L1.
+- **Consensus:** Proof of Stake (Casper + LMD-GHOST).
+- **Smart contracts:** General-purpose (Solidity, EVM).
+- **Use case:** Global decentralized apps (finance, NFTs, DAOs, DeFi).
+- **Trust model:** Open — anyone can run a node or deploy contracts.
+
+## Corda
+- **Type:** Permissioned DLT (enterprise blockchain).
+- **Consensus:** Not a global chain — transactions are verified **only by involved parties**. Uses **notaries** (RAFT, BFT).
+- **Smart contracts:** JVM-based (Kotlin/Java).
+- **Use case:** Finance, supply chain, regulated industries.
+- **Trust model:** Closed consortium — known entities only.
+
+## Solana
+- **Type:** Public, permissionless L1.
+- **Consensus:** Proof of Stake **+ Proof of History (PoH)**.
+- **Smart contracts:** Rust-based (Sealevel runtime).
+- **Use case:** High-throughput dApps (DeFi, NFTs, payments).
+- **Trust model:** Open — but fewer validators (high hardware demands).
+
+**Summary:**
+- Ethereum → decentralized, slower, secure.
+- Corda → permissioned, enterprise-focused, no global consensus.
+- Solana → fast, high throughput, decentralization trade-offs.
+
+---
+
+# ⚙️ Consensus Mechanisms
+
+## RAFT
+- Distributed systems consensus (not blockchain-native).
+- Leader-based → simple, fast.
+- Used in permissioned chains (Corda, Quorum).
+- **Limitation:** assumes honesty, not Byzantine fault tolerant.
+
+## PoW (Proof of Work)
+- Miners solve puzzles → secure, energy-intensive.
+- Sybil-resistant.
+- Used by Bitcoin, Ethereum pre-Merge.
+
+## PoS (Proof of Stake)
+- Validators stake tokens → chance to propose blocks weighted by stake.
+- Energy-efficient, slashing deters misbehavior.
+- Used by Ethereum, Solana, Cosmos.
+
+## PoA (Proof of Authority)
+- Fixed trusted validators sign blocks.
+- Very fast, centralized.
+- Used in testnets, sidechains, enterprise chains.
+
+---
+
+# 🧩 Byzantine Generals Problem
+- Core challenge: *How can nodes agree if some are faulty/malicious?*
+- **PoW:** Honesty from costly work.
+- **PoS:** Honesty from stake + slashing.
+- **RAFT:** Assumes no Byzantine actors, only crash faults.
+- **BFT algorithms (Tendermint, HotStuff):** Tolerate Byzantine actors up to 1/3.
+
+---
+
+# ✅ TL;DR
+- **Ethereum:** Public PoS smart contract chain.
+- **Corda:** Permissioned enterprise DLT, RAFT/BFT notaries.
+- **Solana:** High-speed PoS + PoH chain.
+- **RAFT:** Leader consensus, non-Byzantine.
+- **PoW / PoS / PoA:** Different economic + security trade-offs.
+- **Byzantine Problem:** Root issue — agreeing despite faulty/malicious nodes.
+
+![img_1.png](img_1.png)
+
+# 📦 Mempool in Ethereum PoW
+
+## 1. What It Is
+- Mempool = the “waiting room” for transactions.
+- Every full node maintained a **local mempool**.
+- Incoming user transactions lived here before miners picked them for inclusion in a block.
+
+---
+
+## 2. How It Worked in PoW
+1. User signed and broadcasted a transaction.
+2. Transaction propagated across the network → nodes validated it (nonce, balance, signature).
+3. Valid transactions entered each node’s mempool.
+4. Miners selected transactions from their mempool to build candidate blocks.
+  - Priority = **highest gas price first**.
+  - Miners could reorder, include, or exclude transactions (basis for **MEV**).
+5. When a miner solved the PoW puzzle → block was broadcast.
+6. All included transactions were removed from mempools across the network.
+
+---
+
+## 3. Key Notes
+- There was **no single global mempool** → each node had its own.
+- Pending transactions weren’t guaranteed to be seen by everyone.
+- This design enabled **front-running and MEV** (bots watching mempools).
+
+---
+
+## ✅ Summary
+Yes, Ethereum PoW had a mempool.
+- Nodes stored valid but unconfirmed transactions.
+- Miners picked from it (usually by gas price) when proposing blocks.
+- It was the battlefield for **gas wars, arbitrage, and MEV**.
+
+# 📦 Mempool in Ethereum PoW
+
+## 1. What It Is
+- Mempool = the “waiting room” for transactions.
+- Every full node maintained a **local mempool**.
+- Incoming user transactions lived here before miners picked them for inclusion in a block.
+
+---
+
+## 2. How It Worked in PoW
+1. User signed and broadcasted a transaction.
+2. Transaction propagated across the network → nodes validated it (nonce, balance, signature).
+3. Valid transactions entered each node’s mempool.
+4. Miners selected transactions from their mempool to build candidate blocks.
+  - Priority = **highest gas price first**.
+  - Miners could reorder, include, or exclude transactions (basis for **MEV**).
+5. When a miner solved the PoW puzzle → block was broadcast.
+6. All included transactions were removed from mempools across the network.
+
+---
+
+## 3. Key Notes
+- There was **no single global mempool** → each node had its own.
+- Pending transactions weren’t guaranteed to be seen by everyone.
+- This design enabled **front-running and MEV** (bots watching mempools).
+
+---
+
+## ✅ Summary
+Yes, Ethereum PoW had a mempool.
+- Nodes stored valid but unconfirmed transactions.
+- Miners picked from it (usually by gas price) when proposing blocks.
+- It was the battlefield for **gas wars, arbitrage, and MEV**.
+
+
+# 🏦 SDX Digital Bond Issuance on Corda
+
+## 1. Why Corda?
+- **Permissioned DLT** → fits regulated finance (banks, exchanges).
+- **Privacy** → only transaction participants see the data.
+- **Identity** → all participants are KYC’d, legally recognized entities.
+- **Finality** → legal certainty of transactions (critical for securities).
+
+---
+
+## 2. Fungible Token Model
+- Corda doesn’t use ERC-20; instead, it uses **state objects + contracts**.
+- Bonds modeled as **fungible token states** using Corda’s **Token SDK**.
+- Each bond unit = a state object (fungible, transferable).
+- Supports fractional issuance (e.g., CHF 1,000 units).
+
+---
+
+## 3. Architecture
+- **Issuer Node (SDX / Bank):** Creates and issues the digital bond.
+- **Investor Nodes:** Hold and transfer bond token states.
+- **Notary Service:** Provides consensus (RAFT or BFT) and prevents double-spending.
+- **Regulatory/Observer Nodes:** Get copies of transactions for compliance.
+
+**Flow:**
+1. Issuer defines bond terms (face value, coupon, maturity).
+2. Smart contract logic enforces issuance and transfer validity.
+3. Investors receive fungible token states representing bond units.
+4. Coupon payments and redemptions can be automated with workflows.
+
+---
+
+## 4. Benefits
+- **Token SDK** → easy issuance and transfer of fungible bonds.
+- **Privacy** → transactions shared only with involved parties.
+- **Integration** → connects with existing custody/settlement systems.
+- **Legal certainty** → aligned with Swiss DLT laws for securities.
+
+---
+
+## ✅ Summary
+SDX digital bonds = **fungible tokenized bond states** on Corda.
+- Issued by banks/exchanges, held by investors, validated by notaries.
+- Each unit of a bond is a **fungible state** governed by smart contract rules.
+- Corda enables **privacy, compliance, and legal finality**, making it suitable for regulated digital securities.
+
