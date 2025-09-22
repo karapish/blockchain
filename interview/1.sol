@@ -12,10 +12,12 @@ ERC-20 is the fungible token standard. Would want to see:
 */
 
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.27;
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+// Compatible with OpenZeppelin Contracts ^5.4.0
+
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MyToken is ERC20, Ownable {
     constructor()
@@ -48,7 +50,15 @@ A notary service requires:
 */
 
 // 💻 Solidity Code (Document Notary)
-contract DocumentNotary is Ownable {
+contract DocumentNotary {
+    address public owner;
+    
+    // ✅ UPGRADEABLE: Use initialize() to set owner
+    function initialize(address _owner) external {
+        require(owner == address(0), "Already initialized");
+        owner = _owner;
+    }
+
     // Structure to store details about each notarized document
     struct Record {
         uint256 timestamp;  // The time at which the document was notarized (block timestamp)
@@ -57,25 +67,27 @@ contract DocumentNotary is Ownable {
 
     // Mapping from document hash to its associated record
     // Stores information about notarization and revocation state for each document hash
-    mapping(bytes32 => Record) private records;
+    mapping(string => Record) private records;
+    string[] private recordsHashes; // <-- keep an array of keys
 
     // Event emitted whenever a document is successfully notarized
     // The document hash and the timestamp of notarization are indexed and stored in logs
-    event Notarized(bytes32 indexed docHash, uint256 timestamp);
+    event Notarized(string indexed docHash, uint256 timestamp);
 
     // Event emitted whenever a document is revoked by the owner
     // The document hash and revocation timestamp are logged for transparency
-    event Revoked(bytes32 indexed docHash, uint256 timestamp);
+    event Revoked(string indexed docHash, uint256 timestamp);
 
     // Function to notarize a document by its hash
     // Anyone can call this function
     // Throws an error if the document hash has already been notarized
-    function notarize(bytes32 docHash) external {
+    function notarize(string calldata docHash) external {
         // Check if the document has not been previously notarized (timestamp == 0 means no record)
         require(records[docHash].timestamp == 0, "Already notarized");
 
         // Create a new record with current block timestamp and mark as not revoked
         records[docHash] = Record(block.timestamp, false);
+        recordsHashes.push(docHash);
 
         // Emit a Notarized event indicating successful notarization
         emit Notarized(docHash, block.timestamp);
@@ -83,7 +95,7 @@ contract DocumentNotary is Ownable {
 
     // View function to verify notarization status of a document hash
     // Returns the timestamp of notarization and whether it has been revoked
-    function verify(bytes32 docHash) external view returns (uint256, bool) {
+    function verify(string calldata docHash) external view returns (uint256, bool) {
         // Load record from storage into memory
         Record memory rec = records[docHash];
 
@@ -93,7 +105,7 @@ contract DocumentNotary is Ownable {
 
     // Function to revoke a previously notarized document
     // Only the contract owner (deployer or assigned) can call this
-    function revoke(bytes32 docHash) external onlyOwner {
+    function revoke(string calldata docHash) external onlyOwner {
         // Check if the document hash was notarized before revocation can occur
         require(records[docHash].timestamp != 0, "Not found");
 
@@ -106,49 +118,107 @@ contract DocumentNotary is Ownable {
         // Emit a Revoked event to log the revocation on the blockchain
         emit Revoked(docHash, block.timestamp);
     }
+
+    function getCount() external view returns (uint256) {
+        return recordsHashes.length;
+    }
 }
 
-/*
-❓ Q3: How to make DocumentNotary upgradeable?
-✅ Response
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-Use proxy pattern (Transparent Proxy or UUPS from OpenZeppelin).
+contract DocumentNotaryUpgradeable is Initializable, OwnableUpgradeable {
+    struct Record {
+        uint256 timestamp;
+        bool revoked;
+    }
 
-Store state in the proxy, logic in implementation contracts.
+    mapping(string => Record) private records;
+    string[] private recordsHashes;
 
-Replace constructors with initialize() functions.
+    event Notarized(string indexed docHash, uint256 timestamp);
+    event Revoked(string indexed docHash, uint256 timestamp);
 
-Manage upgrades with onlyOwner or governance mechanism.
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        // Prevents implementation contract from being initialized
+        _disableInitializers();
+    }
 
-❓ Q4: Security considerations in these contracts?
-✅ Response
+    // Instead of constructor
+    function initialize(address owner) public initializer {
+        __Ownable_init(owner);
+    }
 
-Reentrancy: Avoid external calls before state changes, use ReentrancyGuard if needed.
+    function notarize(string calldata docHash) external {
+        require(records[docHash].timestamp == 0, "Already notarized");
 
-Access control: Restrict minting and revoking to onlyOwner.
+        records[docHash] = Record(block.timestamp, false);
+        recordsHashes.push(docHash);
 
-Gas optimization: Use calldata for external inputs, minimize storage writes.
+        emit Notarized(docHash, block.timestamp);
+    }
 
-Events: Emit events for every state change to ensure auditability.
+    function verify(string calldata docHash) external view returns (uint256, bool) {
+        Record memory rec = records[docHash];
+        return (rec.timestamp, rec.revoked);
+    }
 
-Upgradeable contracts: Prevent storage slot collisions and follow OpenZeppelin patterns.
+    function revoke(string calldata docHash) external onlyOwner {
+        require(records[docHash].timestamp != 0, "Not found");
+        require(!records[docHash].revoked, "Already revoked");
 
+        records[docHash].revoked = true;
+        emit Revoked(docHash, block.timestamp);
+    }
 
-❓ Q5: Unit tests (example cases)
-✅ Response
+    function getCount() external view returns (uint256) {
+        return recordsHashes.length;
+    }
+}
 
-Using Hardhat/Foundry tests should cover:
+import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
+import {ERC20FlashMint} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20FlashMint.sol";
+import {ERC20Pausable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Pausable.sol";
+import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import {ERC20Votes} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
+import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
+import {ERC1363} from "@openzeppelin/contracts/token/ERC20/extensions/ERC1363.sol";
 
-Mint and burn correctly update balances.
+contract MyToken2 is ERC20, ERC20Burnable, ERC20Pausable, Ownable, ERC1363, ERC20Permit, ERC20Votes, ERC20FlashMint {
+    constructor()
+        ERC20("MyToken", "MTK")
+        Ownable(_msgSender())
+        ERC20Permit("MyToken")
+    {
+        _mint(_msgSender(), 100 * 10 ** decimals());
+    }
 
-Notarize a hash → verify returns correct timestamp.
+    function pause() public onlyOwner {
+        _pause();
+    }
 
-Attempt to re-notarize the same hash → should revert.
+    function unpause() public onlyOwner {
+        _unpause();
+    }
 
-Non-owner attempts to revoke → should revert.
+    function mint(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
+    }
 
-Owner revokes a hash → verify returns revoked = true.
+    // The following functions are overrides required by Solidity.
 
-Measure gas usage of notarization and verify it’s efficient
+    function _update(address from, address to, uint256 value) internal
+    override(ERC20, ERC20Pausable, ERC20Votes)
+    {
+        super._update(from, to, value);
+    }
 
-*/
+    function nonces(address owner) public view
+    override(ERC20Permit, Nonces)
+    returns (uint256)
+    {
+        return super.nonces(owner);
+    }
+}
+

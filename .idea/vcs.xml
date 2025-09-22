@@ -3,33 +3,6 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/Migachain/smart-contract" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/cloud-services" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/dg-dev-utils" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/dg-stats-monitor" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/dg-telemetry" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/finsbury-ansible" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/finsbury-api-svc" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/finsbury-dlt-svc" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/finsbury-docker-local" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/finsbury-sftp" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/finsbury-terraform" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/finsbury-ui" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/long-island-tea" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/quorum-maker" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/titanium-analytics" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/titanium-analytics-svc" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/titanium-calc-svc" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/titanium-config-svc" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/titanium-docker-local" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/titanium-e2e-tests" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/titanium-fileio-svc" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/titanium-frontend-react" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/titanium-io-svc" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/titanium-schema-svc" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/titanium-solidity" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/titanium-terraform" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/drumg/titanium-ui-svc" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/lib/forge-std" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/lib/openzeppelin-contracts" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/lib/openzeppelin-contracts-upgradeable" vcs="Git" />

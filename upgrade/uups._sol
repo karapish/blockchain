@@ -1,0 +1,64 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+import "@openzeppelin/contracts/utils/Address.sol";
+
+abstract contract UUPSUpgradeable {
+    // Use the standard ERC-1967 implementation slot:
+    bytes32 private constant _IMPLEMENTATION_SLOT =
+    bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
+
+    // Function to upgrade, only if authorized
+    function upgradeTo(address newImpl) external virtual {
+        _authorizeUpgrade(newImpl);
+        _setImplementation(newImpl);
+    }
+
+    // Optionally, upgrade + call initializer or setup logic
+    function upgradeToAndCall(address newImpl, bytes calldata data) external payable virtual {
+        _authorizeUpgrade(newImpl);
+        _setImplementation(newImpl);
+        if (data.length > 0) {
+            Address.functionDelegateCall(newImpl, data);
+        }
+    }
+
+    // Must be overridden to define who can upgrade
+    function _authorizeUpgrade(address newImpl) internal view virtual;
+
+    // Internal write to implementation slot
+    function _setImplementation(address newImpl) private {
+        require(newImpl.code.length > 0, "New implementation is not a contract");
+        assembly {
+            sstore(_IMPLEMENTATION_SLOT, newImpl)
+        }
+    }
+
+    // Read implementation address
+    function _getImplementation() internal view returns (address impl) {
+        assembly {
+            impl := sload(_IMPLEMENTATION_SLOT)
+        }
+    }
+}
+
+contract MyContract is UUPSUpgradeable {
+    address public owner;
+    bool private _initialized;  // avoid re-initializing
+
+    function initialize(address _owner) external {
+        require(!_initialized, "Already initialized");
+        require(_owner != address(0), "Owner zero");
+        owner = _owner;
+        _initialized = true;
+    }
+
+    function _authorizeUpgrade(address newImpl) internal view override {
+        require(msg.sender == owner, "Only owner");
+    }
+
+    // Example logic
+    function doSomething() external pure returns (uint256) {
+        return 42;
+    }
+}
