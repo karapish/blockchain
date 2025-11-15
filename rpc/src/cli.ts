@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import {fileURLToPath} from 'url';
 import {ERC20_ABI} from "./ERC20_ABI.js";
+import {UNISWAP_ROUTER_ABI} from "./UNISWAP_ROUTER_ABI.js";
 
 dotenv.config();
 path.dirname(fileURLToPath(import.meta.url));
@@ -14,6 +15,8 @@ interface NetworkConfig {
   rpc: string;
   usdcAddress: string;
   name: string;
+  uniswapRouter: string;
+  wethAddress: string;
 }
 
 const network = (process.env.NETWORK!).toLowerCase() as 'mainnet' | 'sepolia' | 'base';
@@ -23,16 +26,22 @@ const networkConfigs: Record<string, NetworkConfig> = {
     rpc: process.env.MAINNET_RPC_URL!,
     usdcAddress: process.env.MAINNET_USDC_ADDRESS!,
     name: 'Ethereum Mainnet',
+    uniswapRouter: process.env.MAINNET_UNISWAP_ROUTER!,
+    wethAddress: process.env.MAINNET_WETH_ADDRESS!,
   },
   sepolia: {
     rpc: process.env.SEPOLIA_RPC_URL!,
     usdcAddress: process.env.SEPOLIA_USDC_ADDRESS!,
     name: 'Sepolia Testnet',
+    uniswapRouter: process.env.SEPOLIA_UNISWAP_ROUTER!,
+    wethAddress: process.env.SEPOLIA_WETH_ADDRESS!,
   },
   base: {
     rpc: process.env.BASE_RPC_URL!,
     usdcAddress: process.env.BASE_USDC_ADDRESS!,
     name: 'Base Network',
+    uniswapRouter: process.env.BASE_UNISWAP_ROUTER!,
+    wethAddress: process.env.BASE_WETH_ADDRESS!,
   },
 };
 
@@ -61,7 +70,7 @@ async function getBalance(address: string): Promise<void> {
     console.log(`\n📍 Fetching ETH balance for: ${address}`);
     const balance = await provider.getBalance(address);
     const formatted = ethers.formatEther(balance);
-    console.log(`✅ Balance: ${formatted} ETH\n`);
+    console.log(`✅ Balance: ${balance} (${formatted} ETH)\n`);
   } catch (error) {
     if (error instanceof Error) {
       console.error('❌ Error:', error.message);
@@ -242,6 +251,111 @@ async function sendUSDC(toAddress: string, amount: string): Promise<void> {
 }
 
 // Displays wallet information: ETH and USDC balances, transaction count, and recent outgoing transactions
+async function swap(amount: string, fromToken: string, toToken: string): Promise<void> {
+  try {
+    const privateKey = process.env.PRIVATE_KEY;
+    if (!privateKey) {
+      console.error('❌ PRIVATE_KEY not set in environment');
+      return;
+    }
+
+    if (!USDC_ADDRESS) {
+      console.error('❌ USDC_ADDRESS not set in environment');
+      return;
+    }
+
+    const fromLower = fromToken.toLowerCase();
+    const toLower = toToken.toLowerCase();
+
+    if ((fromLower !== 'eth' && fromLower !== 'usdc') || (toLower !== 'eth' && toLower !== 'usdc')) {
+      console.error('❌ Unsupported token. Use "eth" or "usdc"');
+      return;
+    }
+
+    if (fromLower === toLower) {
+      console.error('❌ Cannot swap token to itself');
+      return;
+    }
+
+    const wallet = new ethers.Wallet(privateKey, provider);
+    const routerAddress = config.uniswapRouter;
+    const wethAddress = config.wethAddress;
+
+    console.log(`\n🔄 Swapping ${fromToken.toUpperCase()} for ${toToken.toUpperCase()} via Uniswap...`);
+    console.log(`📤 From: ${wallet.address}`);
+    console.log(`💰 Amount: ${amount} ${fromToken.toUpperCase()}`);
+    console.log(`🔗 Network: ${config.name}\n`);
+
+    const router = new ethers.Contract(routerAddress, UNISWAP_ROUTER_ABI, wallet);
+    let tx;
+
+    if (fromLower === 'eth' && toLower === 'usdc') {
+      const amountInWei = ethers.parseEther(amount);
+      const amountOutMinimum = ethers.parseUnits('1', 6);
+
+      const path = ethers.solidityPacked(
+        ['address', 'uint24', 'address'],
+        [wethAddress, 3000, USDC_ADDRESS]
+      );
+
+      const params = {
+        path,
+        recipient: wallet.address,
+        deadline: Math.floor(Date.now() / 1000) + 60 * 20,
+        amountIn: amountInWei,
+        amountOutMinimum,
+      };
+
+      tx = await router.exactInputSingle(params, { value: amountInWei });
+    } else if (fromLower === 'usdc' && toLower === 'eth') {
+      const usdcDecimals = 6;
+      const amountInWei = ethers.parseUnits(amount, usdcDecimals);
+      const amountOutMinimum = ethers.parseEther('0.0001');
+
+      const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, wallet);
+      const approveTx = await usdcContract.approve(routerAddress, amountInWei);
+      console.log(`⏳ Approval sent: ${approveTx.hash}`);
+      const approveReceipt = await approveTx.wait();
+      if (!approveReceipt) {
+        console.error('❌ Approval failed');
+        return;
+      }
+
+      const path = ethers.solidityPacked(
+        ['address', 'uint24', 'address'],
+        [USDC_ADDRESS, 3000, wethAddress]
+      );
+
+      const params = {
+        path,
+        recipient: wallet.address,
+        deadline: Math.floor(Date.now() / 1000) + 60 * 20,
+        amountIn: amountInWei,
+        amountOutMinimum,
+      };
+
+      tx = await router.exactInputSingle(params);
+    }
+
+    console.log(`⏳ Transaction sent: ${tx.hash}`);
+    console.log(`⏳ Waiting for confirmation...`);
+
+    const receipt = await tx.wait();
+    if (receipt) {
+      console.log(`✅ Swap confirmed!`);
+      console.log(`✅ Block: ${receipt.blockNumber}`);
+      console.log(`✅ Gas Used: ${receipt.gasUsed}`);
+      console.log(`✅ Status: ${receipt.status === 1 ? 'Success' : 'Failed'}\n`);
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('❌ Error:', error.message);
+    } else {
+      console.error('❌ Unknown error occurred');
+    }
+  }
+}
+
 async function walletInfo(address: string): Promise<void> {
   try {
     console.log(`\n📊 Wallet Info for: ${address}`);
@@ -249,14 +363,14 @@ async function walletInfo(address: string): Promise<void> {
     
     const ethBalance = await provider.getBalance(address);
     const formattedETH = ethers.formatEther(ethBalance);
-    console.log(`✅ ETH Balance: ${formatNumber(formattedETH)} ETH`);
+    console.log(`✅ ETH Balance: ${ethBalance} (${formattedETH} ETH)`);
 
     if (USDC_ADDRESS) {
       const contract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, provider);
       const usdcBalance: bigint = await contract.balanceOf(address);
       const decimals: number = await contract.decimals();
       const formattedUSDC = ethers.formatUnits(usdcBalance, decimals);
-      console.log(`✅ USDC Balance: ${formatNumber(formattedUSDC)} USDC`);
+      console.log(`✅ USDC Balance: ${usdcBalance}, fmt ${formattedUSDC} USDC`);
     }
 
     const txCount = await provider.getTransactionCount(address);
@@ -407,6 +521,16 @@ async function main(): Promise<void> {
         } else {
           console.error('❌ Unknown token type. Use "eth" or "usdc"');
         }
+      } else if (subcommand === 'trade') {
+        const amount = process.argv[4];
+        const fromToken = process.argv[5];
+        const toToken = process.argv[6];
+
+        if (!amount || !fromToken || !toToken) {
+          console.error('❌ Usage: wallet trade <qty> <eth|usdc> <eth|usdc>');
+          return;
+        }
+        await swap(amount, fromToken, toToken);
       } else if (subcommand === 'info') {
         const targetAddress = process.argv[4];
         if (!targetAddress) {
@@ -415,7 +539,7 @@ async function main(): Promise<void> {
         }
         await walletInfo(targetAddress);
       } else {
-        console.error('❌ Usage: wallet <create|send|info>');
+        console.error('❌ Usage: wallet <create|send|trade|info>');
       }
       break;
     }
@@ -431,11 +555,12 @@ Usage:
   wallet create               - Create & save persistent wallet
   wallet send eth <addr> <qty>   - Send ETH to address
   wallet send usdc <addr> <qty>  - Send USDC to address
+  wallet trade <qty> <from> <to> - Swap tokens via Uniswap (e.g., trade 0.1 eth usdc)
   wallet info <address>       - Get wallet info & transaction history
   help                        - Show this message
 
 Environment:
-  NETWORK                   - Set to "mainnet", "sepolia", or "base" (default: "sepolia")
+  NETWORK                   - Set to "mainnet", "sepolia", or "base"
   MAINNET_RPC_URL           - Mainnet RPC endpoint
   MAINNET_USDC_ADDRESS      - Mainnet USDC contract address
   SEPOLIA_RPC_URL           - Sepolia RPC endpoint
