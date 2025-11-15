@@ -5,7 +5,6 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import {fileURLToPath} from 'url';
-// ESM requires explicit extension at runtime; use .js so compiled output resolves correctly
 import {ERC20_ABI} from "./ERC20_ABI.js";
 
 dotenv.config();
@@ -13,6 +12,11 @@ path.dirname(fileURLToPath(import.meta.url));
 
 const RPC_URL = process.env.RPC_URL;
 const USDC_ADDRESS = process.env.USDC_ADDRESS;
+
+if (!RPC_URL) {
+  console.error('❌ RPC_URL not set in environment');
+  process.exit(1);
+}
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 
@@ -37,6 +41,10 @@ async function getBalance(address: string): Promise<void> {
 
 async function queryUSDC(): Promise<void> {
   try {
+    if (!USDC_ADDRESS) {
+      console.error('❌ USDC_ADDRESS not set in environment');
+      return;
+    }
     console.log(`\n💰 Querying USDC (Sepolia): ${USDC_ADDRESS}`);
     const contract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, provider);
     
