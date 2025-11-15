@@ -331,7 +331,7 @@ async function walletInfo(address: string): Promise<void> {
         .slice(0, 5);
 
       if (recentTransactions.length > 0) {
-        console.log(`\n📤 Last 5 Sent Transactions:`);
+        console.log(`\n📤 Last ${recentTransactions.length} Sent Transactions:`);
         recentTransactions.forEach((tx, idx) => {
           console.log(`   ${idx + 1}. ${tx.to}`);
           console.log(`      Amount: ${formatNumber(tx.amount)} ETH`);
