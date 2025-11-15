@@ -103,45 +103,61 @@ function createWallet() {
 async function main() {
   const command = process.argv[2];
   const subcommand = process.argv[3];
+  const action = `${command}-${subcommand}`;
   
-  if (!command || command === 'help') {
-    console.log(`
+  switch (command) {
+    case 'balance': {
+      const address = process.argv[3];
+      if (!address) {
+        console.error('❌ Please provide an address');
+        return;
+      }
+      await getBalance(address);
+      break;
+    }
+    
+    case 'contract':
+      if (subcommand === 'query') {
+        const type = process.argv[4];
+        switch (type) {
+          case 'usdc':
+            await queryUSDC();
+            break;
+          default:
+            console.error('❌ Unknown contract type');
+        }
+      } else {
+        console.error('❌ Usage: node cli.js contract query <type>');
+      }
+      break;
+    
+    case 'block':
+      await getLatestBlock();
+      break;
+    
+    case 'wallet':
+      if (subcommand === 'create') {
+        createWallet();
+      } else {
+        console.error('❌ Usage: node cli.js wallet create');
+      }
+      break;
+    
+    case 'help':
+    case undefined:
+      console.log(`
 Ethereum Testnet CLI Tool
 Usage:
   node cli.js balance <address>         - Get ETH balance
   node cli.js contract query usdc       - Query USDC contract info
   node cli.js block                     - Get latest block info
-  node cli.js wallet create test        - Create & save persistent wallet
+  node cli.js wallet create             - Create & save persistent wallet
   node cli.js help                      - Show this message
 `);
-    return;
-  }
-
-  if (command === 'balance') {
-    const address = process.argv[3];
-    if (!address) {
-      console.error('❌ Please provide an address');
-      return;
-    }
-    await getBalance(address);
-  } else if (command === 'contract' && subcommand === 'query') {
-    const type = process.argv[4];
-    if (type === 'usdc') {
-      await queryUSDC();
-    } else {
-      console.error('❌ Unknown contract type');
-    }
-  } else if (command === 'block') {
-    await getLatestBlock();
-  } else if (command === 'wallet' && subcommand === 'create') {
-    const type = process.argv[4];
-    if (type === 'test') {
-      createWallet();
-    } else {
-      console.error('❌ Usage: node cli.js wallet create test');
-    }
-  } else {
-    console.error(`❌ Unknown command: ${command}`);
+      break;
+    
+    default:
+      console.error(`❌ Unknown command: ${command}`);
   }
 }
 
