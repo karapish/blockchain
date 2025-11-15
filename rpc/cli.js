@@ -2,6 +2,8 @@
 
 import { ethers } from 'ethers';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 
 dotenv.config();
 
@@ -62,17 +64,55 @@ async function getLatestBlock() {
   }
 }
 
+function createWallet() {
+  try {
+    const wallet = ethers.Wallet.createRandom();
+    const envPath = path.join(process.cwd(), '.env');
+    
+    const address = wallet.address;
+    const privateKey = wallet.privateKey;
+    
+    let envContent = '';
+    if (fs.existsSync(envPath)) {
+      envContent = fs.readFileSync(envPath, 'utf-8');
+    }
+    
+    if (envContent.includes('WALLET_ADDRESS=')) {
+      envContent = envContent.replace(/WALLET_ADDRESS=.*/g, `WALLET_ADDRESS=${address}`);
+    } else {
+      envContent += `WALLET_ADDRESS=${address}\n`;
+    }
+    
+    if (envContent.includes('PRIVATE_KEY=')) {
+      envContent = envContent.replace(/PRIVATE_KEY=.*/g, `PRIVATE_KEY=${privateKey}`);
+    } else {
+      envContent += `PRIVATE_KEY=${privateKey}\n`;
+    }
+    
+    fs.writeFileSync(envPath, envContent);
+    
+    console.log(`\n🔐 Wallet Created & Saved to .env`);
+    console.log(`✅ Address:     ${address}`);
+    console.log(`✅ Private Key: ${privateKey}`);
+    console.log(`⚠️  Keep PRIVATE_KEY safe! Never share it.\n`);
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+  }
+}
+
 async function main() {
   const command = process.argv[2];
+  const subcommand = process.argv[3];
   
   if (!command || command === 'help') {
     console.log(`
 Ethereum Testnet CLI Tool
 Usage:
-  node cli.js balance <address>    - Get ETH balance
-  node cli.js usdc                 - Query USDC contract info
-  node cli.js block                - Get latest block info
-  node cli.js help                 - Show this message
+  node cli.js balance <address>         - Get ETH balance
+  node cli.js contract query usdc       - Query USDC contract info
+  node cli.js block                     - Get latest block info
+  node cli.js wallet create test        - Create & save persistent wallet
+  node cli.js help                      - Show this message
 `);
     return;
   }
@@ -84,10 +124,22 @@ Usage:
       return;
     }
     await getBalance(address);
-  } else if (command === 'usdc') {
-    await queryUSDC();
+  } else if (command === 'contract' && subcommand === 'query') {
+    const type = process.argv[4];
+    if (type === 'usdc') {
+      await queryUSDC();
+    } else {
+      console.error('❌ Unknown contract type');
+    }
   } else if (command === 'block') {
     await getLatestBlock();
+  } else if (command === 'wallet' && subcommand === 'create') {
+    const type = process.argv[4];
+    if (type === 'test') {
+      createWallet();
+    } else {
+      console.error('❌ Usage: node cli.js wallet create test');
+    }
   } else {
     console.error(`❌ Unknown command: ${command}`);
   }
