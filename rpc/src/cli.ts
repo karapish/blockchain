@@ -155,6 +155,87 @@ function createWallet(): void {
   }
 }
 
+async function sendETH(toAddress: string, amount: string): Promise<void> {
+  try {
+    const privateKey = process.env.PRIVATE_KEY;
+    if (!privateKey) {
+      console.error('❌ PRIVATE_KEY not set in environment');
+      return;
+    }
+
+    const wallet = new ethers.Wallet(privateKey, provider);
+    console.log(`\n💸 Sending ETH...`);
+    console.log(`📤 From: ${wallet.address}`);
+    console.log(`📥 To: ${toAddress}`);
+    console.log(`💰 Amount: ${amount} ETH`);
+
+    const tx = await wallet.sendTransaction({
+      to: toAddress,
+      value: ethers.parseEther(amount),
+    });
+
+    console.log(`⏳ Transaction sent: ${tx.hash}`);
+    console.log(`⏳ Waiting for confirmation...`);
+    
+    const receipt = await tx.wait();
+    if (receipt) {
+      console.log(`✅ Transaction confirmed!`);
+      console.log(`✅ Block: ${receipt.blockNumber}`);
+      console.log(`✅ Gas Used: ${receipt.gasUsed}\n`);
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('❌ Error:', error.message);
+    } else {
+      console.error('❌ Unknown error occurred');
+    }
+  }
+}
+
+async function sendUSDC(toAddress: string, amount: string): Promise<void> {
+  try {
+    if (!USDC_ADDRESS) {
+      console.error('❌ USDC_ADDRESS not set in environment');
+      return;
+    }
+
+    const privateKey = process.env.PRIVATE_KEY;
+    if (!privateKey) {
+      console.error('❌ PRIVATE_KEY not set in environment');
+      return;
+    }
+
+    const wallet = new ethers.Wallet(privateKey, provider);
+    const contract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, wallet);
+
+    console.log(`\n💸 Sending USDC...`);
+    console.log(`📤 From: ${wallet.address}`);
+    console.log(`📥 To: ${toAddress}`);
+    console.log(`💰 Amount: ${amount} USDC`);
+
+    const decimals: number = await contract.decimals();
+    const amountWithDecimals = ethers.parseUnits(amount, decimals);
+
+    const tx = await contract.transfer(toAddress, amountWithDecimals);
+
+    console.log(`⏳ Transaction sent: ${tx.hash}`);
+    console.log(`⏳ Waiting for confirmation...`);
+    
+    const receipt = await tx.wait();
+    if (receipt) {
+      console.log(`✅ Transaction confirmed!`);
+      console.log(`✅ Block: ${receipt.blockNumber}`);
+      console.log(`✅ Gas Used: ${receipt.gasUsed}\n`);
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('❌ Error:', error.message);
+    } else {
+      console.error('❌ Unknown error occurred');
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const command = process.argv[2];
   const subcommand = process.argv[3];
@@ -189,24 +270,44 @@ async function main(): Promise<void> {
       await getLatestBlock();
       break;
     
-    case 'wallet':
+    case 'wallet': {
       if (subcommand === 'create') {
         createWallet();
+      } else if (subcommand === 'send') {
+        const tokenType = process.argv[4];
+        const toAddress = process.argv[5];
+        const amount = process.argv[6];
+
+        if (!tokenType || !toAddress || !amount) {
+          console.error('❌ Usage: wallet send <eth|usdc> <address> <qty>');
+          return;
+        }
+
+        if (tokenType === 'eth') {
+          await sendETH(toAddress, amount);
+        } else if (tokenType === 'usdc') {
+          await sendUSDC(toAddress, amount);
+        } else {
+          console.error('❌ Unknown token type. Use "eth" or "usdc"');
+        }
       } else {
-        console.error('❌ Usage: wallet create');
+        console.error('❌ Usage: wallet <create|send>');
       }
       break;
+    }
     
     case 'help':
     case undefined:
       console.log(`
 Ethereum CLI Tool (Current: ${config.name})
 Usage:
-  balance <address>         - Get ETH balance
-  contract query usdc       - Query USDC contract info
-  block                     - Get latest block info
-  wallet create             - Create & save persistent wallet
-  help                      - Show this message
+  balance <address>           - Get ETH balance
+  contract query usdc         - Query USDC contract info
+  block                       - Get latest block info
+  wallet create               - Create & save persistent wallet
+  wallet send eth <addr> <qty>   - Send ETH to address
+  wallet send usdc <addr> <qty>  - Send USDC to address
+  help                        - Show this message
 
 Environment:
   NETWORK                   - Set to "mainnet" or "sepolia" (default: "sepolia")
