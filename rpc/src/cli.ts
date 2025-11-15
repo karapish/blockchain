@@ -278,8 +278,8 @@ async function swap(amount: string, fromToken: string, toToken: string): Promise
     }
 
     const wallet = new ethers.Wallet(privateKey, provider);
-    const routerAddress = config.uniswapRouter;
-    const wethAddress = config.wethAddress;
+    const routerAddress = ethers.getAddress(config.uniswapRouter);
+    const wethAddress = ethers.getAddress(config.wethAddress);
 
     console.log(`\n🔄 Swapping ${fromToken.toUpperCase()} for ${toToken.toUpperCase()} via Uniswap...`);
     console.log(`📤 From: ${wallet.address}`);
@@ -295,7 +295,7 @@ async function swap(amount: string, fromToken: string, toToken: string): Promise
 
       const path = ethers.solidityPacked(
         ['address', 'uint24', 'address'],
-        [wethAddress, 3000, USDC_ADDRESS]
+        [wethAddress, 3000, ethers.getAddress(USDC_ADDRESS)]
       );
 
       const params = {
@@ -323,7 +323,7 @@ async function swap(amount: string, fromToken: string, toToken: string): Promise
 
       const path = ethers.solidityPacked(
         ['address', 'uint24', 'address'],
-        [USDC_ADDRESS, 3000, wethAddress]
+        [ethers.getAddress(USDC_ADDRESS), 3000, wethAddress]
       );
 
       const params = {
