@@ -16,7 +16,7 @@ interface NetworkConfig {
   name: string;
 }
 
-const network = (process.env.NETWORK!).toLowerCase() as 'mainnet' | 'sepolia';
+const network = (process.env.NETWORK!).toLowerCase() as 'mainnet' | 'sepolia' | 'base';
 
 const networkConfigs: Record<string, NetworkConfig> = {
   mainnet: {
@@ -29,10 +29,15 @@ const networkConfigs: Record<string, NetworkConfig> = {
     usdcAddress: process.env.SEPOLIA_USDC_ADDRESS!,
     name: 'Sepolia Testnet',
   },
+  base: {
+    rpc: process.env.BASE_RPC_URL!,
+    usdcAddress: process.env.BASE_USDC_ADDRESS!,
+    name: 'Base Network',
+  },
 };
 
 if (!networkConfigs[network]) {
-  console.error(`❌ Unknown network: ${network}. Use "mainnet" or "sepolia"`);
+  console.error(`❌ Unknown network: ${network}. Use "mainnet", "sepolia", or "base"`);
   process.exit(1);
 }
 
@@ -236,6 +241,95 @@ async function sendUSDC(toAddress: string, amount: string): Promise<void> {
   }
 }
 
+async function walletInfo(address: string): Promise<void> {
+  try {
+    console.log(`\n📊 Wallet Info for: ${address}`);
+    
+    const ethBalance = await provider.getBalance(address);
+    const formattedETH = ethers.formatEther(ethBalance);
+    console.log(`✅ ETH Balance: ${formatNumber(formattedETH)} ETH`);
+
+    if (USDC_ADDRESS) {
+      const contract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, provider);
+      const usdcBalance: bigint = await contract.balanceOf(address);
+      const decimals: number = await contract.decimals();
+      const formattedUSDC = ethers.formatUnits(usdcBalance, decimals);
+      console.log(`✅ USDC Balance: ${formatNumber(formattedUSDC)} USDC`);
+    }
+
+    const txCount = await provider.getTransactionCount(address);
+    console.log(`✅ Transaction Count (Nonce): ${txCount}`);
+
+    const latestBlock = await provider.getBlock('latest');
+    if (!latestBlock) {
+      console.log(`⚠️  No block data available\n`);
+      return;
+    }
+
+    console.log(`\n🔍 Scanning recent blocks for transactions from this address...`);
+    const sentTransactions: string[] = [];
+    const receivedTransactions: string[] = [];
+
+    const blocksToScan = Math.min(100, latestBlock.number);
+    for (let i = 0; i < blocksToScan; i++) {
+      const blockNum = latestBlock.number - i;
+      const block = await provider.getBlock(blockNum);
+      
+      if (!block || !block.transactions) continue;
+
+      for (const txHash of block.transactions) {
+        const tx = await provider.getTransaction(txHash);
+        if (!tx) continue;
+
+        const normalizedFrom = tx.from?.toLowerCase();
+        const normalizedTo = tx.to?.toLowerCase();
+        const normalizedAddr = address.toLowerCase();
+
+        if (normalizedFrom === normalizedAddr && normalizedTo) {
+          sentTransactions.push(normalizedTo);
+        } else if (normalizedTo === normalizedAddr) {
+          receivedTransactions.push(normalizedFrom || '0x0000000000000000000000000000000000000000');
+        }
+      }
+    }
+
+    const uniqueSentTo = [...new Set(sentTransactions)];
+    const uniqueReceivedFrom = [...new Set(receivedTransactions)];
+
+    if (uniqueSentTo.length > 0) {
+      console.log(`\n📤 Sent Crypto To (${uniqueSentTo.length} unique addresses):`);
+      uniqueSentTo.slice(0, 10).forEach((addr, idx) => {
+        console.log(`   ${idx + 1}. ${addr}`);
+      });
+      if (uniqueSentTo.length > 10) {
+        console.log(`   ... and ${uniqueSentTo.length - 10} more`);
+      }
+    } else {
+      console.log(`\n📤 No outgoing transactions found`);
+    }
+
+    if (uniqueReceivedFrom.length > 0) {
+      console.log(`\n📥 Received Crypto From (${uniqueReceivedFrom.length} unique addresses):`);
+      uniqueReceivedFrom.slice(0, 10).forEach((addr, idx) => {
+        console.log(`   ${idx + 1}. ${addr}`);
+      });
+      if (uniqueReceivedFrom.length > 10) {
+        console.log(`   ... and ${uniqueReceivedFrom.length - 10} more`);
+      }
+    } else {
+      console.log(`\n📥 No incoming transactions found`);
+    }
+
+    console.log(`\n✅ Scanned last ${blocksToScan} blocks\n`);
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('❌ Error:', error.message);
+    } else {
+      console.error('❌ Unknown error occurred');
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const command = process.argv[2];
   const subcommand = process.argv[3];
@@ -290,8 +384,15 @@ async function main(): Promise<void> {
         } else {
           console.error('❌ Unknown token type. Use "eth" or "usdc"');
         }
+      } else if (subcommand === 'info') {
+        const targetAddress = process.argv[4];
+        if (!targetAddress) {
+          console.error('❌ Usage: wallet info <address>');
+          return;
+        }
+        await walletInfo(targetAddress);
       } else {
-        console.error('❌ Usage: wallet <create|send>');
+        console.error('❌ Usage: wallet <create|send|info>');
       }
       break;
     }
@@ -307,14 +408,19 @@ Usage:
   wallet create               - Create & save persistent wallet
   wallet send eth <addr> <qty>   - Send ETH to address
   wallet send usdc <addr> <qty>  - Send USDC to address
+  wallet info <address>       - Get wallet info & transaction history
   help                        - Show this message
 
 Environment:
-  NETWORK                   - Set to "mainnet" or "sepolia" (default: "sepolia")
+  NETWORK                   - Set to "mainnet", "sepolia", or "base" (default: "sepolia")
   MAINNET_RPC_URL           - Mainnet RPC endpoint
   MAINNET_USDC_ADDRESS      - Mainnet USDC contract address
   SEPOLIA_RPC_URL           - Sepolia RPC endpoint
   SEPOLIA_USDC_ADDRESS      - Sepolia USDC contract address
+  BASE_RPC_URL              - Base RPC endpoint
+  BASE_USDC_ADDRESS         - Base USDC contract address
+
+Note: wallet info shows balances on both Ethereum Mainnet and Base networks.
 `);
       break;
     
