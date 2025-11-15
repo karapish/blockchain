@@ -16,6 +16,10 @@ const ERC20_ABI = [
   'function totalSupply() view returns (uint256)',
 ];
 
+function formatNumber(num) {
+  return Number(num).toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
 async function getBalance(address) {
   try {
     console.log(`\n📍 Fetching ETH balance for: ${address}`);
@@ -35,10 +39,11 @@ async function queryUSDC() {
     const symbol = await contract.symbol();
     const decimals = await contract.decimals();
     const totalSupply = await contract.totalSupply();
+    const formattedSupply = ethers.formatUnits(totalSupply, decimals);
     
     console.log(`✅ Symbol: ${symbol}`);
     console.log(`✅ Decimals: ${decimals}`);
-    console.log(`✅ Total Supply: ${ethers.formatUnits(totalSupply, decimals)}\n`);
+    console.log(`✅ Total Supply: ${formatNumber(formattedSupply)} ${symbol}\n`);
   } catch (error) {
     console.error('❌ Error:', error.message);
   }
