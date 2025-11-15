@@ -10,8 +10,35 @@ import {ERC20_ABI} from "./ERC20_ABI.js";
 dotenv.config();
 path.dirname(fileURLToPath(import.meta.url));
 
-const RPC_URL = process.env.RPC_URL;
-const USDC_ADDRESS = process.env.USDC_ADDRESS;
+interface NetworkConfig {
+  rpc: string;
+  usdcAddress: string;
+  name: string;
+}
+
+const network = (process.env.NETWORK!).toLowerCase() as 'mainnet' | 'sepolia';
+
+const networkConfigs: Record<string, NetworkConfig> = {
+  mainnet: {
+    rpc: process.env.MAINNET_RPC_URL!,
+    usdcAddress: process.env.MAINNET_USDC_ADDRESS!,
+    name: 'Ethereum Mainnet',
+  },
+  sepolia: {
+    rpc: process.env.SEPOLIA_RPC_URL!,
+    usdcAddress: process.env.SEPOLIA_USDC_ADDRESS!,
+    name: 'Sepolia Testnet',
+  },
+};
+
+if (!networkConfigs[network]) {
+  console.error(`❌ Unknown network: ${network}. Use "mainnet" or "sepolia"`);
+  process.exit(1);
+}
+
+const config = networkConfigs[network];
+const RPC_URL = config.rpc;
+const USDC_ADDRESS = config.usdcAddress;
 
 if (!RPC_URL) {
   console.error('❌ RPC_URL not set in environment');
@@ -45,7 +72,7 @@ async function queryUSDC(): Promise<void> {
       console.error('❌ USDC_ADDRESS not set in environment');
       return;
     }
-    console.log(`\n💰 Querying USDC (Sepolia): ${USDC_ADDRESS}`);
+    console.log(`\n💰 Querying USDC (${config.name}): ${USDC_ADDRESS}`);
     const contract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, provider);
     
     const symbol: string = await contract.symbol();
@@ -173,13 +200,20 @@ async function main(): Promise<void> {
     case 'help':
     case undefined:
       console.log(`
-Ethereum Testnet CLI Tool
+Ethereum CLI Tool (Current: ${config.name})
 Usage:
   balance <address>         - Get ETH balance
   contract query usdc       - Query USDC contract info
   block                     - Get latest block info
   wallet create             - Create & save persistent wallet
   help                      - Show this message
+
+Environment:
+  NETWORK                   - Set to "mainnet" or "sepolia" (default: "sepolia")
+  MAINNET_RPC_URL           - Mainnet RPC endpoint
+  MAINNET_USDC_ADDRESS      - Mainnet USDC contract address
+  SEPOLIA_RPC_URL           - Sepolia RPC endpoint
+  SEPOLIA_USDC_ADDRESS      - Sepolia USDC contract address
 `);
       break;
     
