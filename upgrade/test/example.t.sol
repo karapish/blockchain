@@ -7,10 +7,12 @@ import {MyContractV1, MyContractV2} from "../example.sol";
 
 contract UpgradeTest is Test {
     address public proxy;
+    Options private opts;
 
     function setUp() public {
-        Options memory opts;
-        opts.unsafeSkipAllChecks = true;
+        //opts.unsafeSkipAllChecks = true;
+        //opts.unsafeSkipProxyAdminCheck = true;
+        //opts.unsafeSkipStorageCheck = true;
 
         // Deploy transparent proxy pointing to V1
         proxy = Upgrades.deployTransparentProxy(
@@ -22,9 +24,6 @@ contract UpgradeTest is Test {
     }
 
     function testUpgrade() public {
-        Options memory opts;
-        opts.unsafeSkipAllChecks = true;
-
         // check initial behavior
         MyContractV1 instance1 = MyContractV1(proxy);
         assertEq(instance1.getValue(), 42);
