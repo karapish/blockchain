@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const RPC_URL = process.env.RPC_URL;
+const RPC_URL = process.env.RPC_URL || 'https://1rpc.io/sepolia';
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 
 const USDC_ADDRESS = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238'; // Sepolia USDC
