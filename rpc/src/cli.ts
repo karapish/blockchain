@@ -4,13 +4,17 @@ import { ethers } from 'ethers';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const RPC_URL = process.env.RPC_URL || 'https://1rpc.io/sepolia';
+const USDC_ADDRESS = process.env.USDC_ADDRESS || '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
+
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 
-const USDC_ADDRESS = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238'; // Sepolia USDC
 const ERC20_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
   'function symbol() view returns (string)',
@@ -18,53 +22,71 @@ const ERC20_ABI = [
   'function totalSupply() view returns (uint256)',
 ];
 
-function formatNumber(num) {
+function formatNumber(num: string | number): string {
   return Number(num).toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
-async function getBalance(address) {
+async function getBalance(address: string): Promise<void> {
   try {
     console.log(`\n📍 Fetching ETH balance for: ${address}`);
     const balance = await provider.getBalance(address);
     const formatted = ethers.formatEther(balance);
     console.log(`✅ Balance: ${formatted} ETH\n`);
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    if (error instanceof Error) {
+      console.error('❌ Error:', error.message);
+    } else {
+      console.error('❌ Unknown error occurred');
+    }
   }
 }
 
-async function queryUSDC() {
+async function queryUSDC(): Promise<void> {
   try {
     console.log(`\n💰 Querying USDC (Sepolia): ${USDC_ADDRESS}`);
     const contract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, provider);
     
-    const symbol = await contract.symbol();
-    const decimals = await contract.decimals();
-    const totalSupply = await contract.totalSupply();
+    const symbol: string = await contract.symbol();
+    const decimals: number = await contract.decimals();
+    const totalSupply: bigint = await contract.totalSupply();
     const formattedSupply = ethers.formatUnits(totalSupply, decimals);
     
     console.log(`✅ Symbol: ${symbol}`);
     console.log(`✅ Decimals: ${decimals}`);
     console.log(`✅ Total Supply: ${formatNumber(formattedSupply)} ${symbol}\n`);
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    if (error instanceof Error) {
+      console.error('❌ Error:', error.message);
+    } else {
+      console.error('❌ Unknown error occurred');
+    }
   }
 }
 
-async function getLatestBlock() {
+async function getLatestBlock(): Promise<void> {
   try {
     console.log(`\n📦 Fetching latest block...`);
     const block = await provider.getBlock('latest');
+    
+    if (!block) {
+      console.error('❌ No block data returned');
+      return;
+    }
+    
     console.log(`✅ Block Number: ${block.number}`);
-    console.log(`✅ Timestamp: ${new Date(block.timestamp * 1000).toISOString()}`);
+    console.log(`✅ Timestamp: ${new Date((block.timestamp || 0) * 1000).toISOString()}`);
     console.log(`✅ Gas Used: ${block.gasUsed}`);
     console.log(`✅ Miner: ${block.miner}\n`);
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    if (error instanceof Error) {
+      console.error('❌ Error:', error.message);
+    } else {
+      console.error('❌ Unknown error occurred');
+    }
   }
 }
 
-function createWallet() {
+function createWallet(): void {
   try {
     const wallet = ethers.Wallet.createRandom();
     const envPath = path.join(process.cwd(), '.env');
@@ -96,14 +118,17 @@ function createWallet() {
     console.log(`✅ Private Key: ${privateKey}`);
     console.log(`⚠️  Keep PRIVATE_KEY safe! Never share it.\n`);
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    if (error instanceof Error) {
+      console.error('❌ Error:', error.message);
+    } else {
+      console.error('❌ Unknown error occurred');
+    }
   }
 }
 
-async function main() {
+async function main(): Promise<void> {
   const command = process.argv[2];
   const subcommand = process.argv[3];
-  const action = `${command}-${subcommand}`;
   
   switch (command) {
     case 'balance': {

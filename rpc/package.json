@@ -2,15 +2,19 @@
   "name": "ethereum-rpc-cli",
   "version": "1.0.0",
   "description": "Node.js CLI tool for interacting with Ethereum Testnet contracts",
-  "main": "cli.js",
+  "main": "dist/cli.js",
   "type": "module",
   "scripts": {
-    "start": "node cli.js",
-    "balance": "node cli.js balance",
-    "usdc": "node cli.js usdc"
+    "build": "tsc",
+    "dev": "tsc --watch --preserveWatchOutput",
+    "start": "node dist/cli.js"
   },
   "dependencies": {
     "ethers": "^6.13.0",
     "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
   }
 }
