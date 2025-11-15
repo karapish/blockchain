@@ -65,12 +65,56 @@ function formatNumber(num: string | number): string {
   return Number(num).toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
-async function getBalance(address: string): Promise<void> {
+async function getETHBalance(address: string): Promise<void> {
   try {
     console.log(`\n📍 Fetching ETH balance for: ${address}`);
     const balance = await provider.getBalance(address);
     const formatted = ethers.formatEther(balance);
     console.log(`✅ Balance: ${balance} (${formatted} ETH)\n`);
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('❌ Error:', error.message);
+    } else {
+      console.error('❌ Unknown error occurred');
+    }
+  }
+}
+
+async function getUSDCBalance(address: string): Promise<void> {
+  try {
+    if (!USDC_ADDRESS) {
+      console.error('❌ USDC_ADDRESS not set in environment');
+      return;
+    }
+    console.log(`\n📍 Fetching USDC balance for: ${address}`);
+    const contract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, provider);
+    const balance: bigint = await contract.balanceOf(address);
+    const decimals: number = await contract.decimals();
+    const formatted = ethers.formatUnits(balance, decimals);
+    console.log(`✅ Balance: ${balance} (${formatted} USDC)\n`);
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('❌ Error:', error.message);
+    } else {
+      console.error('❌ Unknown error occurred');
+    }
+  }
+}
+
+async function queryETH(): Promise<void> {
+  try {
+    const wethAddress = config.wethAddress;
+    console.log(`\n💰 Querying WETH (${config.name}): ${wethAddress}`);
+    const contract = new ethers.Contract(wethAddress, ERC20_ABI, provider);
+    
+    const symbol: string = await contract.symbol();
+    const decimals: number = await contract.decimals();
+    const totalSupply: bigint = await contract.totalSupply();
+    const formattedSupply = ethers.formatUnits(totalSupply, decimals);
+    
+    console.log(`✅ Symbol: ${symbol}`);
+    console.log(`✅ Decimals: ${decimals}`);
+    console.log(`✅ Total Supply: ${formatNumber(formattedSupply)} ${symbol}\n`);
   } catch (error) {
     if (error instanceof Error) {
       console.error('❌ Error:', error.message);
@@ -473,19 +517,33 @@ async function main(): Promise<void> {
   
   switch (command) {
     case 'balance': {
-      const address = process.argv[3];
-      if (!address) {
-        console.error('❌ Please provide an address');
+      const tokenType = process.argv[3];
+      const walletAddress = process.env.WALLET_ADDRESS;
+      
+      if (!walletAddress) {
+        console.error('❌ WALLET_ADDRESS not set in environment');
         return;
       }
-      await getBalance(address);
+
+      if (tokenType === 'eth') {
+        await getETHBalance(walletAddress);
+      } else if (tokenType === 'usdc') {
+        await getUSDCBalance(walletAddress);
+      } else {
+        console.error('❌ Usage: balance <eth|usdc>');
+      }
       break;
     }
     
-    case 'contract':
-      if (subcommand === 'query') {
-        const type = process.argv[4];
-        switch (type) {
+    case 'contract': {
+      const tokenType = process.argv[3];
+      const action = process.argv[4];
+      
+      if (action === 'query') {
+        switch (tokenType) {
+          case 'eth':
+            await queryETH();
+            break;
           case 'usdc':
             await queryUSDC();
             break;
@@ -493,9 +551,10 @@ async function main(): Promise<void> {
             console.error('❌ Unknown contract type');
         }
       } else {
-        console.error('❌ Usage: contract query <type>');
+        console.error('❌ Usage: contract <eth|usdc> query');
       }
       break;
+    }
     
     case 'block':
       await getLatestBlock();
@@ -549,8 +608,10 @@ async function main(): Promise<void> {
       console.log(`
 Ethereum CLI Tool (Current: ${config.name})
 Usage:
-  balance <address>           - Get ETH balance
-  contract query usdc         - Query USDC contract info
+  balance eth                 - Check current wallet ETH balance
+  balance usdc                - Check current wallet USDC balance
+  contract eth query          - Query WETH contract info
+  contract usdc query         - Query USDC contract info
   block                       - Get latest block info
   wallet create               - Create & save persistent wallet
   wallet send eth <addr> <qty>   - Send ETH to address
