@@ -101,7 +101,7 @@ async function getUSDCBalance(address: string): Promise<void> {
   }
 }
 
-async function queryETH(): Promise<void> {
+async function queryWETH(): Promise<void> {
   try {
     const wethAddress = config.wethAddress;
     console.log(`\n💰 Querying WETH (${config.name}): ${wethAddress}`);
@@ -335,12 +335,19 @@ async function swap(amount: string, fromToken: string, toToken: string): Promise
 
     if (fromLower === 'eth' && toLower === 'usdc') {
       const amountInWei = ethers.parseEther(amount);
-      const amountOutMinimum = ethers.parseUnits('1', 6);
 
       const path = ethers.solidityPacked(
         ['address', 'uint24', 'address'],
         [wethAddress, 3000, ethers.getAddress(USDC_ADDRESS)]
       );
+
+      const estimatedOut = ethers.parseUnits((parseFloat(amount) * 2000).toString(), 6);
+      const slippage = (estimatedOut * 1n) / 100n;
+      const amountOutMinimum = estimatedOut - slippage;
+
+      console.log(`💱 Estimated output: ${ethers.formatUnits(estimatedOut, 6)} USDC`);
+      console.log(`📉 Slippage (1%): ${ethers.formatUnits(slippage, 6)} USDC`);
+      console.log(`📉 Minimum received: ${ethers.formatUnits(amountOutMinimum, 6)} USDC\n`);
 
       const params = {
         path,
@@ -354,7 +361,6 @@ async function swap(amount: string, fromToken: string, toToken: string): Promise
     } else if (fromLower === 'usdc' && toLower === 'eth') {
       const usdcDecimals = 6;
       const amountInWei = ethers.parseUnits(amount, usdcDecimals);
-      const amountOutMinimum = ethers.parseEther('0.0001');
 
       const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, wallet);
       const approveTx = await usdcContract.approve(routerAddress, amountInWei);
@@ -369,6 +375,14 @@ async function swap(amount: string, fromToken: string, toToken: string): Promise
         ['address', 'uint24', 'address'],
         [ethers.getAddress(USDC_ADDRESS), 3000, wethAddress]
       );
+
+      const estimatedOut = ethers.parseEther((parseFloat(amount) / 2000).toString());
+      const slippage = (estimatedOut * 1n) / 100n;
+      const amountOutMinimum = estimatedOut - slippage;
+
+      console.log(`💱 Estimated output: ${ethers.formatEther(estimatedOut)} ETH`);
+      console.log(`📉 Slippage (1%): ${ethers.formatEther(slippage)} ETH`);
+      console.log(`📉 Minimum received: ${ethers.formatEther(amountOutMinimum)} ETH\n`);
 
       const params = {
         path,
@@ -541,8 +555,8 @@ async function main(): Promise<void> {
       
       if (action === 'query') {
         switch (tokenType) {
-          case 'eth':
-            await queryETH();
+          case 'weth':
+            await queryWETH();
             break;
           case 'usdc':
             await queryUSDC();
@@ -610,7 +624,7 @@ Ethereum CLI Tool (Current: ${config.name})
 Usage:
   balance eth                 - Check current wallet ETH balance
   balance usdc                - Check current wallet USDC balance
-  contract eth query          - Query WETH contract info
+  contract weth query         - Query WETH contract info
   contract usdc query         - Query USDC contract info
   block                       - Get latest block info
   wallet create               - Create & save persistent wallet
