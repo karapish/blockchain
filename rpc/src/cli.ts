@@ -1,26 +1,20 @@
 #!/usr/bin/env node
 
-import { ethers } from 'ethers';
+import {ethers} from 'ethers';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import {fileURLToPath} from 'url';
+// ESM requires explicit extension at runtime; use .js so compiled output resolves correctly
+import {ERC20_ABI} from "./ERC20_ABI.js";
 
 dotenv.config();
+path.dirname(fileURLToPath(import.meta.url));
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-const RPC_URL = process.env.RPC_URL || 'https://1rpc.io/sepolia';
-const USDC_ADDRESS = process.env.USDC_ADDRESS || '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
+const RPC_URL = process.env.RPC_URL;
+const USDC_ADDRESS = process.env.USDC_ADDRESS;
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
-
-const ERC20_ABI = [
-  'function balanceOf(address owner) view returns (uint256)',
-  'function symbol() view returns (string)',
-  'function decimals() view returns (uint8)',
-  'function totalSupply() view returns (uint256)',
-];
 
 function formatNumber(num: string | number): string {
   return Number(num).toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -152,7 +146,7 @@ async function main(): Promise<void> {
             console.error('❌ Unknown contract type');
         }
       } else {
-        console.error('❌ Usage: node cli.js contract query <type>');
+        console.error('❌ Usage: contract query <type>');
       }
       break;
     
@@ -164,7 +158,7 @@ async function main(): Promise<void> {
       if (subcommand === 'create') {
         createWallet();
       } else {
-        console.error('❌ Usage: node cli.js wallet create');
+        console.error('❌ Usage: wallet create');
       }
       break;
     
@@ -173,11 +167,11 @@ async function main(): Promise<void> {
       console.log(`
 Ethereum Testnet CLI Tool
 Usage:
-  node cli.js balance <address>         - Get ETH balance
-  node cli.js contract query usdc       - Query USDC contract info
-  node cli.js block                     - Get latest block info
-  node cli.js wallet create             - Create & save persistent wallet
-  node cli.js help                      - Show this message
+  balance <address>         - Get ETH balance
+  contract query usdc       - Query USDC contract info
+  block                     - Get latest block info
+  wallet create             - Create & save persistent wallet
+  help                      - Show this message
 `);
       break;
     
