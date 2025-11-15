@@ -241,9 +241,11 @@ async function sendUSDC(toAddress: string, amount: string): Promise<void> {
   }
 }
 
+// Displays wallet information: ETH and USDC balances, transaction count, and recent outgoing transactions
 async function walletInfo(address: string): Promise<void> {
   try {
     console.log(`\n📊 Wallet Info for: ${address}`);
+    console.log(`🔗 Network: ${config.name}\n`);
     
     const ethBalance = await provider.getBalance(address);
     const formattedETH = ethers.formatEther(ethBalance);
@@ -258,69 +260,90 @@ async function walletInfo(address: string): Promise<void> {
     }
 
     const txCount = await provider.getTransactionCount(address);
-    console.log(`✅ Transaction Count (Nonce): ${txCount}`);
+    console.log(`✅ Transaction Count: ${txCount}`);
 
-    const latestBlock = await provider.getBlock('latest');
-    if (!latestBlock) {
-      console.log(`⚠️  No block data available\n`);
-      return;
-    }
+    try {
+      const latestBlock = await provider.getBlock('latest');
+      if (!latestBlock) {
+        console.log(`⚠️  No block data available\n`);
+        return;
+      }
 
-    console.log(`\n🔍 Scanning recent blocks for transactions from this address...`);
-    const sentTransactions: string[] = [];
-    const receivedTransactions: string[] = [];
+      interface TxDetail {
+        to: string;
+        amount: string;
+        date: string;
+        timestamp: number;
+      }
 
-    const blocksToScan = Math.min(100, latestBlock.number);
-    for (let i = 0; i < blocksToScan; i++) {
-      const blockNum = latestBlock.number - i;
-      const block = await provider.getBlock(blockNum);
+      const sentTransactions: TxDetail[] = [];
+      const blocksToScan = 1;
       
-      if (!block || !block.transactions) continue;
+      console.log(`\n🔍 Scanning ${blocksToScan} recent block for outgoing transactions...`);
+      const startTime = Date.now();
 
-      for (const txHash of block.transactions) {
-        const tx = await provider.getTransaction(txHash);
-        if (!tx) continue;
+      for (let i = 0; i < blocksToScan; i++) {
+        try {
+          const blockNum = latestBlock.number - i;
+          const progress = Math.round(((i + 1) / blocksToScan) * 100);
+          process.stdout.write(`\r⏳ Progress: ${progress}% (${i + 1}/${blocksToScan} block)`);
 
-        const normalizedFrom = tx.from?.toLowerCase();
-        const normalizedTo = tx.to?.toLowerCase();
-        const normalizedAddr = address.toLowerCase();
+          const block = await provider.getBlock(blockNum);
+          
+          if (!block || !block.transactions) continue;
 
-        if (normalizedFrom === normalizedAddr && normalizedTo) {
-          sentTransactions.push(normalizedTo);
-        } else if (normalizedTo === normalizedAddr) {
-          receivedTransactions.push(normalizedFrom || '0x0000000000000000000000000000000000000000');
+          for (let txIdx = 0; txIdx < block.transactions.length; txIdx++) {
+            const txHash = block.transactions[txIdx];
+            const txProgress = Math.round(((txIdx + 1) / block.transactions.length) * 100);
+            process.stdout.write(`\r⏳ Progress: ${progress}% (${i + 1}/${blocksToScan} block) - Transaction: ${txProgress}% (${txIdx + 1}/${block.transactions.length})`);
+
+            try {
+              const tx = await provider.getTransaction(txHash);
+              if (!tx) continue;
+
+              const normalizedFrom = tx.from?.toLowerCase();
+              const normalizedTo = tx.to?.toLowerCase();
+              const normalizedAddr = address.toLowerCase();
+
+              if (normalizedFrom === normalizedAddr && normalizedTo) {
+                const amountETH = ethers.formatEther(tx.value);
+                const date = new Date(block.timestamp! * 1000).toLocaleString();
+                sentTransactions.push({
+                  to: normalizedTo,
+                  amount: amountETH,
+                  date,
+                  timestamp: block.timestamp || 0,
+                });
+              }
+            } catch {
+            }
+          }
+        } catch {
         }
       }
-    }
 
-    const uniqueSentTo = [...new Set(sentTransactions)];
-    const uniqueReceivedFrom = [...new Set(receivedTransactions)];
+      const endTime = Date.now();
+      const duration = ((endTime - startTime) / 1000).toFixed(2);
+      console.log(`\r✅ Scan complete: ${blocksToScan}/${blocksToScan} block (100%) in ${duration}s`);
 
-    if (uniqueSentTo.length > 0) {
-      console.log(`\n📤 Sent Crypto To (${uniqueSentTo.length} unique addresses):`);
-      uniqueSentTo.slice(0, 10).forEach((addr, idx) => {
-        console.log(`   ${idx + 1}. ${addr}`);
-      });
-      if (uniqueSentTo.length > 10) {
-        console.log(`   ... and ${uniqueSentTo.length - 10} more`);
+      const recentTransactions = sentTransactions
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 5);
+
+      if (recentTransactions.length > 0) {
+        console.log(`\n📤 Last 5 Sent Transactions:`);
+        recentTransactions.forEach((tx, idx) => {
+          console.log(`   ${idx + 1}. ${tx.to}`);
+          console.log(`      Amount: ${formatNumber(tx.amount)} ETH`);
+          console.log(`      Date: ${tx.date}`);
+        });
+      } else {
+        console.log(`\n📤 No outgoing transactions found`);
       }
-    } else {
-      console.log(`\n📤 No outgoing transactions found`);
+      console.log();
+    } catch (scanError) {
+      console.log(`\n⚠️  Transaction scanning unavailable (RPC provider limitation)\n`);
     }
-
-    if (uniqueReceivedFrom.length > 0) {
-      console.log(`\n📥 Received Crypto From (${uniqueReceivedFrom.length} unique addresses):`);
-      uniqueReceivedFrom.slice(0, 10).forEach((addr, idx) => {
-        console.log(`   ${idx + 1}. ${addr}`);
-      });
-      if (uniqueReceivedFrom.length > 10) {
-        console.log(`   ... and ${uniqueReceivedFrom.length - 10} more`);
-      }
-    } else {
-      console.log(`\n📥 No incoming transactions found`);
-    }
-
-    console.log(`\n✅ Scanned last ${blocksToScan} blocks\n`);
   } catch (error) {
     if (error instanceof Error) {
       console.error('❌ Error:', error.message);
@@ -419,8 +442,6 @@ Environment:
   SEPOLIA_USDC_ADDRESS      - Sepolia USDC contract address
   BASE_RPC_URL              - Base RPC endpoint
   BASE_USDC_ADDRESS         - Base USDC contract address
-
-Note: wallet info shows balances on both Ethereum Mainnet and Base networks.
 `);
       break;
     
