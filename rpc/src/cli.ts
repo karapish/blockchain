@@ -208,6 +208,10 @@ class UniswapRouterClient {
     exactInputSingle(params: any, overrides?: any) {
         return this.contract.exactInputSingle(params, overrides ?? {});
     }
+
+    exactInputSingleStatic(params: any, overrides?: any) {
+        return this.contract.exactInputSingle.staticCall(params, overrides ?? {});
+    }
 }
 
 class WalletService {
@@ -269,7 +273,7 @@ class SwapService {
         const from = fromToken.toLowerCase();
         const to = toToken.toLowerCase();
 
-        const supported = ['eth', 'usdc'] as const;
+        const supported = ['eth', 'usdc', 'weth'] as const;
 
         if (!supported.includes(from as any) || !supported.includes(to as any)) {
             console.error('❌ Unsupported token. Use "eth" or "usdc"');
@@ -284,7 +288,7 @@ class SwapService {
         return { from, to };
     }
 
-    async swap(amount: string, fromToken: string, toToken: string): Promise<void> {
+    async swap(amount: string, fromToken: string, toToken: string, options?: { dry?: boolean }): Promise<void> {
         try {
             if (!USDC_ADDRESS) {
                 console.error('❌ USDC_ADDRESS not set in environment');
@@ -307,22 +311,14 @@ class SwapService {
 
             let tx;
 
-            // ETH -> USDC
-            if (pair.from === 'eth' && pair.to === 'usdc') {
+// ETH -> USDC (NO approval, router wraps ETH to WETH automatically)
+// WETH -> USDC (WITH approval, pure ERC-20 path)
+
+            if (pair.from === "eth" && pair.to === "usdc") {
+                //
+                // 🔵 ETH → USDC
+                //
                 const amountInWei = ethers.parseEther(amount);
-
-                console.log(`📍 Wrapping ETH to WETH...`);
-                const wethContract = new ethers.Contract(
-                    config.wethAddress,
-                    WETH_ABI,           // but you need WETH ABI with deposit(), see below
-                    wallet,
-                );
-
-                // If your WETH ABI is separate, import WETH_ABI instead of ERC20_ABI
-                const depositTx = await wethContract.deposit({ value: amountInWei });
-                console.log(`⏳ WETH deposit tx: ${depositTx.hash}`);
-                await depositTx.wait();
-                console.log(`✅ Wrapped ${amount} ETH into WETH\n`);
 
                 console.log(`📍 Verifying pool exists...`);
                 const poolExists = await this.factory.verifyPoolExists(this.weth, usdc, FEE_TIER);
@@ -335,8 +331,9 @@ class SwapService {
                     amountInWei,
                     FEE_TIER,
                 );
+
                 if (quotedOut === null) {
-                    console.error('❌ Failed to get quote, aborting swap');
+                    console.error("❌ Failed to get quote, aborting swap");
                     return;
                 }
 
@@ -344,15 +341,67 @@ class SwapService {
                 const amountOutMinimum = quotedOut - slippage;
 
                 console.log(`💱 Quoted output: ${ethers.formatUnits(quotedOut, 6)} USDC`);
-                console.log(`📉 Slippage (1%): ${ethers.formatUnits(slippage, 6)} USDC`);
                 console.log(`📉 Minimum received: ${ethers.formatUnits(amountOutMinimum, 6)} USDC\n`);
 
-                console.log(`📍 Approving WETH spend...`);
-                const wethErc20 = new ERC20Client(this.weth, wallet);
-                const approveTx = await wethErc20.approve(this.routerAddress, amountInWei);
-                console.log(`⏳ Approval sent: ${approveTx.hash}`);
-                await approveTx.wait();
-                console.log(`✅ Approval confirmed\n`);
+                //
+                // 🔑 NO approval here!
+                //
+                const params = {
+                    tokenIn: this.weth,
+                    tokenOut: usdc,
+                    fee: FEE_TIER,
+                    recipient: wallet.address,
+                    deadline: Math.floor(Date.now() / 1000) + 60 * 20,
+                    amountIn: amountInWei,
+                    amountOutMinimum,
+                    sqrtPriceLimitX96: 0n,
+                };
+
+                const overrides = { value: amountInWei }; // Router wraps ETH→WETH internally
+
+                if (options?.dry) {
+                    console.log("🧪 Dry-run ETH→USDC...");
+                    const out = await router.exactInputSingleStatic(params, overrides);
+                    console.log(`🔬 Preview: ${ethers.formatUnits(out, 6)} USDC`);
+                    return;
+                }
+
+                tx = await router.exactInputSingle(params, overrides);
+            }
+
+
+// --------------------------------------------------------------
+// WETH → USDC (approval required, NO native ETH sent)
+// --------------------------------------------------------------
+
+            if (pair.from === "weth" && pair.to === "usdc") {
+                //
+                // 🔵 WETH → USDC
+                //
+                const amountInWei = ethers.parseEther(amount);
+
+                console.log(`📍 Verifying pool exists...`);
+                const poolExists = await this.factory.verifyPoolExists(this.weth, usdc, FEE_TIER);
+                if (!poolExists) return;
+
+                console.log(`📍 Approving router to spend WETH...`);
+                const wethContract = new ERC20Client(this.weth, wallet);
+                const approvalTx = await wethContract.approve(this.routerAddress, amountInWei);
+                await approvalTx.wait();
+                console.log(`✔️ Approval confirmed\n`);
+
+                console.log(`📍 Getting quote...`);
+                const quotedOut = await this.quoter.quoteExactInputSingle(
+                    this.weth,
+                    usdc,
+                    amountInWei,
+                    FEE_TIER,
+                );
+
+                const slippage = (quotedOut * 1n) / 100n;
+                const amountOutMinimum = quotedOut - slippage;
+
+                console.log(`💱 Quoted output: ${ethers.formatUnits(quotedOut, 6)} USDC`);
 
                 const params = {
                     tokenIn: this.weth,
@@ -365,58 +414,12 @@ class SwapService {
                     sqrtPriceLimitX96: 0n,
                 };
 
-                // Note: no ETH value now, it's pure ERC-20 swap
-                tx = await router.exactInputSingle(params);
-            }
-
-            // USDC -> ETH (technically WETH out, but fine for this CLI)
-            if (pair.from === 'usdc' && pair.to === 'eth') {
-                console.log(`📍 Verifying pool exists...`);
-                const poolExists = await this.factory.verifyPoolExists(usdc, this.weth, FEE_TIER);
-                if (!poolExists) return;
-
-                const amountInWithDecimals = ethers.parseUnits(amount, 6);
-
-                console.log(`📍 Approving USDC spend...`);
-                const usdcClient = new ERC20Client(usdc, wallet);
-                const approveTx = await usdcClient.approve(this.routerAddress, amountInWithDecimals);
-                console.log(`⏳ Approval sent: ${approveTx.hash}`);
-                const approveReceipt = await approveTx.wait();
-                if (!approveReceipt) {
-                    console.error('❌ Approval failed');
+                if (options?.dry) {
+                    console.log("🧪 Dry-run WETH→USDC...");
+                    const out = await router.exactInputSingleStatic(params);
+                    console.log(`🔬 Preview: ${ethers.formatUnits(out, 6)} USDC`);
                     return;
                 }
-                console.log(`✅ Approval confirmed\n`);
-
-                console.log(`📍 Getting quote from QuoterV2...`);
-                const quotedOut = await this.quoter.quoteExactInputSingle(
-                    usdc,
-                    this.weth,
-                    amountInWithDecimals,
-                    FEE_TIER,
-                );
-                if (quotedOut === null) {
-                    console.error('❌ Failed to get quote, aborting swap');
-                    return;
-                }
-
-                const slippage = (quotedOut * 1n) / 100n;
-                const amountOutMinimum = quotedOut - slippage;
-
-                console.log(`💱 Quoted output: ${ethers.formatEther(quotedOut)} ETH`);
-                console.log(`📉 Slippage (1%): ${ethers.formatEther(slippage)} ETH`);
-                console.log(`📉 Minimum received: ${ethers.formatEther(amountOutMinimum)} ETH\n`);
-
-                const params = {
-                    tokenIn: usdc,
-                    tokenOut: this.weth,
-                    fee: FEE_TIER,
-                    recipient: wallet.address,
-                    deadline: Math.floor(Date.now() / 1000) + 60 * 20,
-                    amountIn: amountInWithDecimals,
-                    amountOutMinimum,
-                    sqrtPriceLimitX96: 0n,
-                };
 
                 tx = await router.exactInputSingle(params);
             }
@@ -818,7 +821,8 @@ async function main(): Promise<void> {
                     console.error('❌ Usage: wallet trade <qty> <eth|usdc> <eth|usdc>');
                     return;
                 }
-                await swapSvc.swap(amount, fromToken, toToken);
+                const dry = process.argv.includes('--dry') || process.argv.includes('--dry-run');
+                await swapSvc.swap(amount, fromToken, toToken, { dry });
             } else if (subcommand === 'info') {
                 const targetAddress = process.argv[4];
                 if (!targetAddress) {
