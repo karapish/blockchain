@@ -6,9 +6,11 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ERC20_ABI } from './ERC20_ABI.js';
+import { UNISWAP_ROUTER_ABI } from './UNISWAP_ROUTER_ABI.js';
 import { UNISWAP_FACTORY_ABI } from './UNISWAP_FACTORY_ABI.js';
-import { Token, CurrencyAmount, TradeType, Percent } from '@uniswap/sdk-core';
-import { Pool, Route, Trade } from '@uniswap/v3-sdk';
+import { UNISWAP_V3_POOL_ABI } from './UNISWAP_V3_POOL_ABI.js';
+import { Token, CurrencyAmount } from '@uniswap/sdk-core';
+import { Pool } from '@uniswap/v3-sdk';
 
 
 dotenv.config();
@@ -170,8 +172,6 @@ class UniswapFactoryClient {
     }
 }
 
-
-
 class WalletService {
     constructor(private readonly provider: ethers.JsonRpcProvider) {}
 
@@ -244,7 +244,7 @@ class SwapService {
             const poolAddress = await this.factory.getPool(this.weth, USDC_ADDRESS, FEE_TIER);
             const poolContract = new ethers.Contract(
                 poolAddress,
-                UNISWAP_FACTORY_ABI,
+                UNISWAP_V3_POOL_ABI,
                 this.provider,
             );
             const [slot0, liquidity] = await Promise.all([
@@ -290,6 +290,7 @@ class SwapService {
             const poolExists = await this.factory.verifyPoolExists(this.weth, USDC_ADDRESS, FEE_TIER);
             if (!poolExists) return;
 
+
             if (pair.from === 'weth') {
                 console.log(`📍 Approving router to spend WETH...`);
                 const wethContract = new ERC20Client(this.weth, wallet);
@@ -298,29 +299,14 @@ class SwapService {
                 console.log(`✔️ Approval confirmed\n`);
             }
 
-            console.log(`📍 Calculating swap via SDK...`);
-            const pool = await this.getPoolData();
-            if (!pool) {
-                console.error("❌ Failed to fetch pool data, aborting swap");
-                return;
-            }
-
-            const route = new Route([pool], this.wethToken, this.usdcToken);
-            const trade = await Trade.fromRoute(route, CurrencyAmount.fromRawAmount(this.wethToken, amountInWei.toString()), TradeType.EXACT_INPUT);
-            const quotedOut = BigInt(trade.outputAmount.quotient.toString());
-            const slippage = (quotedOut * 1n) / 100n;
-            const amountOutMinimum = quotedOut - slippage;
-            
-            console.log(`💱 Quoted output: ${ethers.formatUnits(quotedOut, 6)} USDC`);
-            console.log(`📉 Minimum received (1% slippage): ${ethers.formatUnits(amountOutMinimum, 6)} USDC\n`);
-
             const params: any = {
                 tokenIn: this.weth,
                 tokenOut: USDC_ADDRESS,
                 fee: FEE_TIER,
                 recipient: wallet.address,
                 amountIn: amountInWei,
-                amountOutMinimum,
+                amountOutMinimum: 0n,
+                deadline: 0n,
                 sqrtPriceLimitX96: 0n,
             };
 
@@ -329,7 +315,7 @@ class SwapService {
             }
 
             const overrides = pair.from === 'eth' ? { value: amountInWei } : {};
-            const routerContract = new ethers.Contract(this.routerAddress, ['function exactInputSingle(tuple(address,address,uint24,address,uint256,uint256,uint160) params) returns (uint256)'], wallet);
+            const routerContract = new ethers.Contract(this.routerAddress, UNISWAP_ROUTER_ABI, wallet);
 
             if (options?.dry) {
                 console.log(`🧪 Dry-run ${pair.from.toUpperCase()}→${pair.to.toUpperCase()}...`);
