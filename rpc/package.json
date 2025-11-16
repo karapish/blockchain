@@ -10,8 +10,11 @@
     "start": "node dist/cli.js"
   },
   "dependencies": {
-    "ethers": "^6.13.0",
-    "dotenv": "^16.3.1"
+    "@uniswap/sdk-core": "^7.9.0",
+    "@uniswap/universal-router-sdk": "^4.21.0",
+    "@uniswap/v3-sdk": "^3.26.0",
+    "dotenv": "^16.3.1",
+    "ethers": "^6.13.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
