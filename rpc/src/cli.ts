@@ -9,6 +9,7 @@ import { ERC20_ABI } from './ERC20_ABI.js';
 import { UNISWAP_ROUTER_ABI } from './UNISWAP_ROUTER_ABI.js';
 import { UNISWAP_FACTORY_ABI } from './UNISWAP_FACTORY_ABI.js';
 import { QUOTER_V2_ABI } from './QUOTER_V2_ABI.js';
+import {WETH_ABI} from "./WETH_ABI.js";
 
 dotenv.config();
 path.dirname(fileURLToPath(import.meta.url));
@@ -310,6 +311,19 @@ class SwapService {
             if (pair.from === 'eth' && pair.to === 'usdc') {
                 const amountInWei = ethers.parseEther(amount);
 
+                console.log(`📍 Wrapping ETH to WETH...`);
+                const wethContract = new ethers.Contract(
+                    config.wethAddress,
+                    WETH_ABI,           // but you need WETH ABI with deposit(), see below
+                    wallet,
+                );
+
+                // If your WETH ABI is separate, import WETH_ABI instead of ERC20_ABI
+                const depositTx = await wethContract.deposit({ value: amountInWei });
+                console.log(`⏳ WETH deposit tx: ${depositTx.hash}`);
+                await depositTx.wait();
+                console.log(`✅ Wrapped ${amount} ETH into WETH\n`);
+
                 console.log(`📍 Verifying pool exists...`);
                 const poolExists = await this.factory.verifyPoolExists(this.weth, usdc, FEE_TIER);
                 if (!poolExists) return;
@@ -333,6 +347,13 @@ class SwapService {
                 console.log(`📉 Slippage (1%): ${ethers.formatUnits(slippage, 6)} USDC`);
                 console.log(`📉 Minimum received: ${ethers.formatUnits(amountOutMinimum, 6)} USDC\n`);
 
+                console.log(`📍 Approving WETH spend...`);
+                const wethErc20 = new ERC20Client(this.weth, wallet);
+                const approveTx = await wethErc20.approve(this.routerAddress, amountInWei);
+                console.log(`⏳ Approval sent: ${approveTx.hash}`);
+                await approveTx.wait();
+                console.log(`✅ Approval confirmed\n`);
+
                 const params = {
                     tokenIn: this.weth,
                     tokenOut: usdc,
@@ -344,7 +365,8 @@ class SwapService {
                     sqrtPriceLimitX96: 0n,
                 };
 
-                tx = await router.exactInputSingle(params, { value: amountInWei });
+                // Note: no ETH value now, it's pure ERC-20 swap
+                tx = await router.exactInputSingle(params);
             }
 
             // USDC -> ETH (technically WETH out, but fine for this CLI)
