@@ -7,6 +7,8 @@ import path from 'path';
 import {fileURLToPath} from 'url';
 import {ERC20_ABI} from "./ERC20_ABI.js";
 import {UNISWAP_ROUTER_ABI} from "./UNISWAP_ROUTER_ABI.js";
+import {UNISWAP_FACTORY_ABI} from "./UNISWAP_FACTORY_ABI.js";
+import {QUOTER_V2_ABI} from "./QUOTER_V2_ABI.js";
 
 dotenv.config();
 path.dirname(fileURLToPath(import.meta.url));
@@ -16,6 +18,8 @@ interface NetworkConfig {
   usdcAddress: string;
   name: string;
   uniswapRouter: string;
+  uniswapFactory: string;
+  quoterV2: string;
   wethAddress: string;
 }
 
@@ -27,6 +31,8 @@ const networkConfigs: Record<string, NetworkConfig> = {
     usdcAddress: process.env.MAINNET_USDC_ADDRESS!,
     name: 'Ethereum Mainnet',
     uniswapRouter: process.env.MAINNET_UNISWAP_ROUTER!,
+    uniswapFactory: process.env.MAINNET_UNISWAP_FACTORY!,
+    quoterV2: process.env.MAINNET_QUOTER_V2!,
     wethAddress: process.env.MAINNET_WETH_ADDRESS!,
   },
   sepolia: {
@@ -34,6 +40,8 @@ const networkConfigs: Record<string, NetworkConfig> = {
     usdcAddress: process.env.SEPOLIA_USDC_ADDRESS!,
     name: 'Sepolia Testnet',
     uniswapRouter: process.env.SEPOLIA_UNISWAP_ROUTER!,
+    uniswapFactory: process.env.SEPOLIA_UNISWAP_FACTORY!,
+    quoterV2: process.env.SEPOLIA_QUOTER_V2!,
     wethAddress: process.env.SEPOLIA_WETH_ADDRESS!,
   },
   base: {
@@ -41,6 +49,8 @@ const networkConfigs: Record<string, NetworkConfig> = {
     usdcAddress: process.env.BASE_USDC_ADDRESS!,
     name: 'Base Network',
     uniswapRouter: process.env.BASE_UNISWAP_ROUTER!,
+    uniswapFactory: process.env.BASE_UNISWAP_FACTORY!,
+    quoterV2: process.env.BASE_QUOTER_V2!,
     wethAddress: process.env.BASE_WETH_ADDRESS!,
   },
 };
@@ -71,6 +81,28 @@ async function getETHBalance(address: string): Promise<void> {
     const balance = await provider.getBalance(address);
     const formatted = ethers.formatEther(balance);
     console.log(`✅ Balance: ${balance} (${formatted} ETH)\n`);
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('❌ Error:', error.message);
+    } else {
+      console.error('❌ Unknown error occurred');
+    }
+  }
+}
+
+async function getWETHBalance(address: string): Promise<void> {
+  try {
+    const wethAddress = config.wethAddress;
+    if (!wethAddress) {
+      console.error('❌ WETH_ADDRESS not set in environment');
+      return;
+    }
+    console.log(`\n📍 Fetching WETH balance for: ${address}`);
+    const contract = new ethers.Contract(wethAddress, ERC20_ABI, provider);
+    const balance: bigint = await contract.balanceOf(address);
+    const decimals: number = await contract.decimals();
+    const formatted = ethers.formatUnits(balance, decimals);
+    console.log(`✅ Balance: ${balance} (${formatted} WETH)\n`);
   } catch (error) {
     if (error instanceof Error) {
       console.error('❌ Error:', error.message);
@@ -141,6 +173,25 @@ async function queryUSDC(): Promise<void> {
     console.log(`✅ Symbol: ${symbol}`);
     console.log(`✅ Decimals: ${decimals}`);
     console.log(`✅ Total Supply: ${formatNumber(formattedSupply)} ${symbol}\n`);
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('❌ Error:', error.message);
+    } else {
+      console.error('❌ Unknown error occurred');
+    }
+  }
+}
+
+async function queryETH(): Promise<void> {
+  try {
+    console.log(`\n💰 Querying ETH (${config.name})`);
+    console.log(`✅ Symbol: ETH`);
+    console.log(`✅ Decimals: 18`);
+    console.log(`✅ Type: Native blockchain token (not an ERC20 contract)`);
+    const feeData = await provider.getFeeData();
+    if (feeData && feeData.gasPrice) {
+      console.log(`✅ Current Gas Price: ${ethers.formatUnits(feeData.gasPrice, 'gwei')} Gwei\n`);
+    }
   } catch (error) {
     if (error instanceof Error) {
       console.error('❌ Error:', error.message);
@@ -294,6 +345,54 @@ async function sendUSDC(toAddress: string, amount: string): Promise<void> {
   }
 }
 
+async function verifyPoolExists(tokenA: string, tokenB: string, fee: number): Promise<boolean> {
+  try {
+    const factoryAddress = ethers.getAddress(config.uniswapFactory);
+    const factory = new ethers.Contract(factoryAddress, UNISWAP_FACTORY_ABI, provider);
+    const poolAddress = await factory.getPool(tokenA, tokenB, fee);
+    
+    if (poolAddress === ethers.ZeroAddress) {
+      console.error(`❌ Pool does not exist for ${tokenA.slice(0, 6)}.../${tokenB.slice(0, 6)}... (fee: ${fee})`);
+      return false;
+    }
+    
+    console.log(`✅ Pool found: ${poolAddress}`);
+    return true;
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('❌ Error verifying pool:', error.message);
+    }
+    return false;
+  }
+}
+
+async function getQuoteExactInputSingle(tokenIn: string, tokenOut: string, amountIn: bigint, fee: number): Promise<bigint | null> {
+  try {
+    const quoterAddress = ethers.getAddress(config.quoterV2);
+    const quoter = new ethers.Contract(quoterAddress, QUOTER_V2_ABI, provider);
+    
+    const params = {
+      tokenIn,
+      tokenOut,
+      amountIn,
+      fee,
+      sqrtPriceLimitX96: 0n,
+    };
+    
+    const result = await quoter.quoteExactInputSingle.staticCall(params);
+    const quotedAmount = result.amountOut;
+    
+    console.log(`📊 QuoterV2 debug - Input: ${ethers.formatEther(amountIn)} ETH, Output: ${ethers.formatUnits(quotedAmount, 6)} USDC`);
+    
+    return quotedAmount;
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('⚠️  Could not get quote from QuoterV2:', error.message);
+    }
+    return null;
+  }
+}
+
 // Displays wallet information: ETH and USDC balances, transaction count, and recent outgoing transactions
 async function swap(amount: string, fromToken: string, toToken: string): Promise<void> {
   try {
@@ -324,6 +423,7 @@ async function swap(amount: string, fromToken: string, toToken: string): Promise
     const wallet = new ethers.Wallet(privateKey, provider);
     const routerAddress = ethers.getAddress(config.uniswapRouter);
     const wethAddress = ethers.getAddress(config.wethAddress);
+    const usdcChecksummed = ethers.getAddress(USDC_ADDRESS);
 
     console.log(`\n🔄 Swapping ${fromToken.toUpperCase()} for ${toToken.toUpperCase()} via Uniswap...`);
     console.log(`📤 From: ${wallet.address}`);
@@ -333,63 +433,85 @@ async function swap(amount: string, fromToken: string, toToken: string): Promise
     const router = new ethers.Contract(routerAddress, UNISWAP_ROUTER_ABI, wallet);
     let tx;
 
+    const FEE_TIER = 3000;
+
     if (fromLower === 'eth' && toLower === 'usdc') {
       const amountInWei = ethers.parseEther(amount);
 
-      const path = ethers.solidityPacked(
-        ['address', 'uint24', 'address'],
-        [wethAddress, 3000, ethers.getAddress(USDC_ADDRESS)]
-      );
+      console.log(`📍 Verifying pool exists...`);
+      const poolExists = await verifyPoolExists(wethAddress, usdcChecksummed, FEE_TIER);
+      if (!poolExists) return;
 
-      const estimatedOut = ethers.parseUnits((parseFloat(amount) * 2000).toString(), 6);
-      const slippage = (estimatedOut * 1n) / 100n;
-      const amountOutMinimum = estimatedOut - slippage;
+      console.log(`📍 Getting quote from QuoterV2...`);
+      const quotedOut = await getQuoteExactInputSingle(wethAddress, usdcChecksummed, amountInWei, FEE_TIER);
+      
+      if (quotedOut === null) {
+        console.error('❌ Failed to get quote, aborting swap');
+        return;
+      }
 
-      console.log(`💱 Estimated output: ${ethers.formatUnits(estimatedOut, 6)} USDC`);
+      const slippage = (quotedOut * 1n) / 100n;
+      const amountOutMinimum = quotedOut - slippage;
+
+      console.log(`💱 Quoted output: ${ethers.formatUnits(quotedOut, 6)} USDC`);
       console.log(`📉 Slippage (1%): ${ethers.formatUnits(slippage, 6)} USDC`);
       console.log(`📉 Minimum received: ${ethers.formatUnits(amountOutMinimum, 6)} USDC\n`);
 
       const params = {
-        path,
+        tokenIn: wethAddress,
+        tokenOut: usdcChecksummed,
+        fee: FEE_TIER,
         recipient: wallet.address,
         deadline: Math.floor(Date.now() / 1000) + 60 * 20,
         amountIn: amountInWei,
         amountOutMinimum,
+        sqrtPriceLimitX96: 0n,
       };
 
+      // Send ETH along; router will wrap to WETH9 when tokenIn is WETH9
       tx = await router.exactInputSingle(params, { value: amountInWei });
     } else if (fromLower === 'usdc' && toLower === 'eth') {
-      const usdcDecimals = 6;
-      const amountInWei = ethers.parseUnits(amount, usdcDecimals);
+      console.log(`📍 Verifying pool exists...`);
+      const poolExists = await verifyPoolExists(usdcChecksummed, wethAddress, FEE_TIER);
+      if (!poolExists) return;
 
-      const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, wallet);
-      const approveTx = await usdcContract.approve(routerAddress, amountInWei);
+      const amountInWithDecimals = ethers.parseUnits(amount, 6);
+
+      console.log(`📍 Approving USDC spend...`);
+      const usdcContract = new ethers.Contract(usdcChecksummed, ERC20_ABI, wallet);
+      const approveTx = await usdcContract.approve(routerAddress, amountInWithDecimals);
       console.log(`⏳ Approval sent: ${approveTx.hash}`);
       const approveReceipt = await approveTx.wait();
       if (!approveReceipt) {
         console.error('❌ Approval failed');
         return;
       }
+      console.log(`✅ Approval confirmed\n`);
 
-      const path = ethers.solidityPacked(
-        ['address', 'uint24', 'address'],
-        [ethers.getAddress(USDC_ADDRESS), 3000, wethAddress]
-      );
+      console.log(`📍 Getting quote from QuoterV2...`);
+      const quotedOut = await getQuoteExactInputSingle(usdcChecksummed, wethAddress, amountInWithDecimals, FEE_TIER);
+      
+      if (quotedOut === null) {
+        console.error('❌ Failed to get quote, aborting swap');
+        return;
+      }
 
-      const estimatedOut = ethers.parseEther((parseFloat(amount) / 2000).toString());
-      const slippage = (estimatedOut * 1n) / 100n;
-      const amountOutMinimum = estimatedOut - slippage;
+      const slippage = (quotedOut * 1n) / 100n;
+      const amountOutMinimum = quotedOut - slippage;
 
-      console.log(`💱 Estimated output: ${ethers.formatEther(estimatedOut)} ETH`);
+      console.log(`💱 Quoted output: ${ethers.formatEther(quotedOut)} ETH`);
       console.log(`📉 Slippage (1%): ${ethers.formatEther(slippage)} ETH`);
       console.log(`📉 Minimum received: ${ethers.formatEther(amountOutMinimum)} ETH\n`);
 
       const params = {
-        path,
+        tokenIn: usdcChecksummed,
+        tokenOut: wethAddress,
+        fee: FEE_TIER,
         recipient: wallet.address,
         deadline: Math.floor(Date.now() / 1000) + 60 * 20,
-        amountIn: amountInWei,
+        amountIn: amountInWithDecimals,
         amountOutMinimum,
+        sqrtPriceLimitX96: 0n,
       };
 
       tx = await router.exactInputSingle(params);
@@ -541,10 +663,12 @@ async function main(): Promise<void> {
 
       if (tokenType === 'eth') {
         await getETHBalance(walletAddress);
+      } else if (tokenType === 'weth') {
+        await getWETHBalance(walletAddress);
       } else if (tokenType === 'usdc') {
         await getUSDCBalance(walletAddress);
       } else {
-        console.error('❌ Usage: balance <eth|usdc>');
+        console.error('❌ Usage: balance <eth|weth|usdc>');
       }
       break;
     }
@@ -555,6 +679,9 @@ async function main(): Promise<void> {
       
       if (action === 'query') {
         switch (tokenType) {
+          case 'eth':
+            await queryETH();
+            break;
           case 'weth':
             await queryWETH();
             break;
@@ -565,7 +692,7 @@ async function main(): Promise<void> {
             console.error('❌ Unknown contract type');
         }
       } else {
-        console.error('❌ Usage: contract <eth|usdc> query');
+        console.error('❌ Usage: contract <eth|weth|usdc> query');
       }
       break;
     }
@@ -622,17 +749,19 @@ async function main(): Promise<void> {
       console.log(`
 Ethereum CLI Tool (Current: ${config.name})
 Usage:
-  balance eth                 - Check current wallet ETH balance
-  balance usdc                - Check current wallet USDC balance
-  contract weth query         - Query WETH contract info
-  contract usdc query         - Query USDC contract info
-  block                       - Get latest block info
-  wallet create               - Create & save persistent wallet
+  balance eth                    - Check current wallet ETH balance
+  balance weth                   - Check current wallet WETH balance
+  balance usdc                   - Check current wallet USDC balance
+  contract eth query             - Query ETH native token info
+  contract weth query            - Query WETH contract info
+  contract usdc query            - Query USDC contract info
+  block                          - Get latest block info
+  wallet create                  - Create & save persistent wallet
   wallet send eth <addr> <qty>   - Send ETH to address
   wallet send usdc <addr> <qty>  - Send USDC to address
   wallet trade <qty> <from> <to> - Swap tokens via Uniswap (e.g., trade 0.1 eth usdc)
-  wallet info <address>       - Get wallet info & transaction history
-  help                        - Show this message
+  wallet info <address>          - Get wallet info & transaction history
+  help                           - Show this message
 
 Environment:
   NETWORK                   - Set to "mainnet", "sepolia", or "base"
