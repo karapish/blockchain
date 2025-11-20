@@ -485,6 +485,108 @@ class ContractDeploymentService {
     }
 }
 
+// =============================
+// OrderBook Client
+// =============================
+
+// Load ABI from sibling order-book package dynamically at runtime to avoid TS rootDir issues
+async function getSimpleOrderbookAbi(): Promise<any[]> {
+    try {
+        const url = new URL('../../order-book/ORDERBOOK_ABI.js', import.meta.url);
+        const mod: any = await import(url.href);
+        const abi = mod?.SIMPLE_ORDERBOOK_ABI ?? mod?.default;
+        if (!abi) throw new Error('SIMPLE_ORDERBOOK_ABI export not found');
+        return abi as any[];
+    } catch (e) {
+        console.error('❌ Failed to load OrderBook ABI from ../order-book/ORDERBOOK_ABI.js');
+        console.error('   Make sure the file exists and is accessible.');
+        throw e;
+    }
+}
+
+function loadDeploymentAddress(contractName: string): string | null {
+    try {
+        const deploymentsPath = path.join(process.cwd(), 'deployments.json');
+        if (!fs.existsSync(deploymentsPath)) {
+            console.error('❌ deployments.json not found. Deploy the contract first using: contract orderbook deploy');
+            return null;
+        }
+        const entries = JSON.parse(fs.readFileSync(deploymentsPath, 'utf-8')) as Array<any>;
+        const filtered = entries.filter(e => (e.contractName === contractName) && (e.network === config.name));
+        if (filtered.length === 0) {
+            console.error(`❌ No deployment found for ${contractName} on ${config.name}`);
+            return null;
+        }
+        const address = filtered[filtered.length - 1].address;
+        return ethers.getAddress(address);
+    } catch (err) {
+        console.error('❌ Failed to read deployments.json');
+        return null;
+    }
+}
+
+function parseArg(raw: string): any {
+    const v = raw.trim();
+    if (v.toLowerCase() === 'true') return true;
+    if (v.toLowerCase() === 'false') return false;
+    // hex address or bytes
+    if (/^0x[0-9a-fA-F]+$/.test(v)) return v;
+    // numeric (treat as BigInt)
+    if (/^\d+$/.test(v)) return BigInt(v);
+    return v;
+}
+
+class OrderBookClient {
+    private readonly address: string;
+    private readonly read: ethers.Contract;
+    private readonly write?: ethers.Contract;
+
+    constructor(private readonly provider: ethers.JsonRpcProvider, address: string, abi: any[]) {
+        this.address = ethers.getAddress(address);
+        this.read = new ethers.Contract(this.address, abi, provider);
+    }
+
+    private getWallet(): ethers.Wallet | null {
+        const pk = process.env.PRIVATE_KEY;
+        if (!pk) {
+            console.error('❌ PRIVATE_KEY not set in environment');
+            return null;
+        }
+        return new ethers.Wallet(pk, this.provider);
+    }
+
+    getWriteContract(abi: any[]): ethers.Contract | null {
+        const wallet = this.getWallet();
+        if (!wallet) return null;
+        return new ethers.Contract(this.address, abi, wallet);
+    }
+
+    async call(method: string, args: string[], abi: any[]): Promise<void> {
+        const contract = this.getWriteContract(abi);
+        if (!contract) return;
+        const parsedArgs = args.map(parseArg);
+        console.log(`📤 Sending tx: ${method}(${args.join(', ')})`);
+        const tx = await (contract as any)[method](...parsedArgs);
+        console.log(`⏳ Waiting for confirmation... tx: ${tx.hash}`);
+        const receipt = await tx.wait();
+        logTxReceipt(receipt);
+    }
+
+    async readCall(method: string, args: string[]): Promise<void> {
+        const parsedArgs = args.map(parseArg);
+        const result = await (this.read as any)[method](...parsedArgs);
+        console.log('🔎 Result:', result);
+    }
+
+    async placeOrder(isBuy: string, base: string, quote: string, price: string, amount: string, abi: any[]): Promise<void> {
+        await this.call('placeOrder', [isBuy, base, quote, price, amount], abi);
+    }
+
+    async cancelOrder(orderId: string, abi: any[]): Promise<void> {
+        await this.call('cancelOrder', [orderId], abi);
+    }
+}
+
 class EventListenerService {
     constructor(private readonly provider: ethers.JsonRpcProvider) {}
 
@@ -873,6 +975,58 @@ async function main(): Promise<void> {
                 } else {
                     console.error('❌ Unknown contract. Use "orderbook" or "orderbook-adv"');
                 }
+            } else if (tokenType === 'orderbook') {
+                const address = loadDeploymentAddress('orderbook');
+                if (!address) break;
+                const abi = await getSimpleOrderbookAbi();
+                const ob = new OrderBookClient(provider, address, abi);
+
+                if (action === 'call') {
+                    // Generic state-changing call
+                    const method = process.argv[5];
+                    const args = process.argv.slice(6);
+                    if (!method) {
+                        console.error('❌ Usage: contract orderbook call <method> [args ...]');
+                        break;
+                    }
+                    await ob.call(method, args, abi);
+                } else if (action === 'read') {
+                    // Generic read-only call
+                    const method = process.argv[5];
+                    const args = process.argv.slice(6);
+                    if (!method) {
+                        console.error('❌ Usage: contract orderbook read <method> [args ...]');
+                        break;
+                    }
+                    await ob.readCall(method, args);
+                } else if (action === 'place' || action === 'placeOrder') {
+                    const isBuy = process.argv[5];
+                    const base = process.argv[6];
+                    const quote = process.argv[7];
+                    const price = process.argv[8];
+                    const amount = process.argv[9];
+                    if (!isBuy || !base || !quote || !price || !amount) {
+                        console.error('❌ Usage: contract orderbook place <isBuy:true|false> <baseToken> <quoteToken> <price> <amount>');
+                        break;
+                    }
+                    await ob.placeOrder(isBuy, base, quote, price, amount, abi);
+                } else if (action === 'cancel' || action === 'cancelOrder') {
+                    const orderId = process.argv[5];
+                    if (!orderId) {
+                        console.error('❌ Usage: contract orderbook cancel <orderId>');
+                        break;
+                    }
+                    await ob.cancelOrder(orderId, abi);
+                } else if (action === 'get' || action === 'getOrder') {
+                    const orderId = process.argv[5];
+                    if (!orderId) {
+                        console.error('❌ Usage: contract orderbook read getOrder <orderId>');
+                        break;
+                    }
+                    await ob.readCall('getOrder', [orderId]);
+                } else {
+                    console.error('❌ Usage: contract orderbook <deploy|call|read|place|cancel|get>');
+                }
             } else {
                 console.error('❌ Usage: contract <eth|weth|usdc|orderbook|orderbook-adv> <query|listen|deploy>');
             }
@@ -937,6 +1091,11 @@ Usage:
   contract weth listen           - Listen to WETH contract events (Transfer, Approval, Deposit, Withdrawal)
   contract usdc listen           - Listen to USDC contract events (Transfer, Approval)
   contract orderbook deploy      - Deploy SimpleOrderBook contract
+  contract orderbook read <method> [args...]   - Read-only call on OrderBook (e.g., read getOrder 1)
+  contract orderbook call <method> [args...]   - State-changing tx (e.g., call cancelOrder 1)
+  contract orderbook place <isBuy> <base> <quote> <price> <amount>
+                                           - Convenience to place order
+  contract orderbook cancel <orderId>       - Convenience to cancel order
   contract orderbook-adv deploy [feeRecipient] - Deploy SortedOrderBook contract with fee recipient
   block                          - Get latest block info
   wallet create                  - Create & save persistent wallet
@@ -956,6 +1115,16 @@ Environment:
   <NETWORK>_WETH_ADDRESS    - WETH contract address
   WALLET_ADDRESS            - Your wallet address
   PRIVATE_KEY               - Your wallet private key
+
+Examples:
+  # Place a BUY order for 1e18 base at price 1000 quote per base
+  NETWORK=sepolia PRIVATE_KEY=... node dist/cli.js contract orderbook place true 0xBase 0xQuote 1000 1000000000000000000
+
+  # Generic call to cancel order 3
+  node dist/cli.js contract orderbook call cancelOrder 3
+
+  # Read an order
+  node dist/cli.js contract orderbook read getOrder 3
 `);
             break;
 
