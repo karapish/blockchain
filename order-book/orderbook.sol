@@ -9,25 +9,25 @@ contract SimpleOrderBook {
     struct Order {
         uint256 id;          // unique ID for this order
         address trader;      // owner of the order
-        bool isBuy;          // true = buy order, false = sell order
+        bool    isBuy;       // true = buy order, false = sell order
         address baseToken;   // token being bought/sold (e.g., ETH, USDC, etc.)
         address quoteToken;  // token used for pricing (e.g., USDC if base is ETH)
         uint256 price;       // price per unit of baseToken in terms of quoteToken
         uint256 amount;      // amount of baseToken to trade
     }
 
-    uint256 public nextOrderId;
+    uint256                   public nextOrderId;
     mapping(uint256 => Order) public orders;
 
     /// @dev Events let off-chain systems (e.g. frontend) track the book
     event OrderPlaced(
         uint256 id,
         address indexed trader,
-        bool isBuy,
+        bool            isBuy,
         address indexed baseToken,
         address indexed quoteToken,
-        uint256 price,
-        uint256 amount
+        uint256         price,
+        uint256         amount
     );
     event OrderCancelled(uint256 id);
 
