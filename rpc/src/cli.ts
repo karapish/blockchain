@@ -12,6 +12,7 @@ import { UNISWAP_V3_POOL_ABI } from './UNISWAP_V3_POOL_ABI.js';
 import { WETH_ABI } from './WETH_ABI.js';
 import { Token, CurrencyAmount } from '@uniswap/sdk-core';
 import { Pool } from '@uniswap/v3-sdk';
+import { execSync } from 'child_process';
 
 
 dotenv.config();
@@ -336,6 +337,148 @@ class SwapService {
                 console.log(`✅ Gas Used: ${receipt.gasUsed}`);
                 console.log(`✅ Status: ${receipt.status === 1 ? 'Success' : 'Failed'}\n`);
             }
+        } catch (error) {
+            handleError(error);
+        }
+    }
+}
+
+class ContractDeploymentService {
+    constructor(private readonly provider: ethers.JsonRpcProvider) {}
+
+    private getWallet(): ethers.Wallet | null {
+        const pk = process.env.PRIVATE_KEY;
+        if (!pk) {
+            console.error('❌ PRIVATE_KEY not set in environment');
+            return null;
+        }
+        return new ethers.Wallet(pk, this.provider);
+    }
+
+    private compileContract(contractName: string): { abi: any[]; bytecode: string } | null {
+        try {
+            const projectRoot = path.resolve(process.cwd(), '..');
+            const contractPath = path.join(projectRoot, 'order-book', `${contractName}.sol`);
+            const openzeppelinPath = path.join(projectRoot, 'lib', 'openzeppelin-contracts');
+
+            if (!fs.existsSync(contractPath)) {
+                console.error(`❌ Contract file not found: ${contractPath}`);
+                return null;
+            }
+
+            console.log(`📦 Compiling ${contractName}.sol...`);
+
+            // Use solc to compile with import remapping
+            const cmd = `solc --combined-json abi,bin --optimize "@openzeppelin/=${openzeppelinPath}/" "${contractPath}"`;
+
+            let output: string;
+            try {
+                output = execSync(cmd, {
+                    encoding: 'utf-8',
+                    cwd: projectRoot,
+                    env: { ...process.env },
+                    stdio: ['pipe', 'pipe', 'pipe']
+                });
+            } catch (execError: any) {
+                console.error('❌ Compilation error:', execError.stderr || execError.stdout || execError.message);
+                return null;
+            }
+
+            // Parse JSON output
+            let compiled;
+            try {
+                compiled = JSON.parse(output);
+            } catch (parseError) {
+                console.error('❌ Failed to parse compilation output');
+                console.error('Output:', output.substring(0, 200));
+                return null;
+            }
+
+            const contractKey = Object.keys(compiled.contracts).find(key =>
+                key.includes(contractName === 'orderbook' ? 'SimpleOrderBook' : 'SortedOrderBook')
+            );
+
+            if (!contractKey) {
+                console.error('❌ Contract not found in compilation output');
+                console.error('Available contracts:', Object.keys(compiled.contracts));
+                return null;
+            }
+
+            const contract = compiled.contracts[contractKey];
+
+            // solc --combined-json may return ABI either as a JSON string or already parsed array
+            const abi = typeof contract.abi === 'string' ? JSON.parse(contract.abi) : contract.abi;
+
+            // Prefer legacy `bin`, fall back to newer `evm.bytecode.object` if available
+            const bytecodeRaw = contract.bin ?? contract?.evm?.bytecode?.object;
+            if (!bytecodeRaw) {
+                console.error('❌ Bytecode not found in compilation output');
+                return null;
+            }
+            const bytecode = bytecodeRaw.startsWith('0x') ? bytecodeRaw : '0x' + bytecodeRaw;
+
+            console.log(`✅ Compilation successful`);
+            return { abi, bytecode };
+        } catch (error) {
+            console.error('❌ Compilation failed:', error instanceof Error ? error.message : 'Unknown error');
+            return null;
+        }
+    }
+
+    async deploy(contractName: string, constructorArgs?: any[]): Promise<void> {
+        try {
+            const wallet = this.getWallet();
+            if (!wallet) return;
+
+            console.log(`\n🚀 Deploying ${contractName} contract...`);
+            console.log(`📤 From: ${wallet.address}`);
+            console.log(`🔗 Network: ${config.name}\n`);
+
+            const compiled = this.compileContract(contractName);
+            if (!compiled) return;
+
+            const { abi, bytecode } = compiled;
+
+            // Create contract factory
+            const factory = new ethers.ContractFactory(abi, bytecode, wallet);
+
+            // Deploy
+            console.log(`⏳ Deploying contract...`);
+            const contract = constructorArgs
+                ? await factory.deploy(...constructorArgs)
+                : await factory.deploy();
+
+            console.log(`⏳ Waiting for deployment transaction...`);
+            await contract.waitForDeployment();
+
+            const address = await contract.getAddress();
+
+            console.log(`\n✅ Contract deployed successfully!`);
+            console.log(`✅ Contract Address: ${address}`);
+            console.log(`✅ Transaction Hash: ${contract.deploymentTransaction()?.hash}`);
+            console.log(`✅ Block Number: ${contract.deploymentTransaction()?.blockNumber || 'pending'}\n`);
+
+            // Save deployment info
+            const deploymentInfo = {
+                contractName,
+                address,
+                network: config.name,
+                deployer: wallet.address,
+                timestamp: new Date().toISOString(),
+                transactionHash: contract.deploymentTransaction()?.hash,
+            };
+
+            const deploymentsPath = path.join(process.cwd(), 'deployments.json');
+            let deployments: any[] = [];
+
+            if (fs.existsSync(deploymentsPath)) {
+                deployments = JSON.parse(fs.readFileSync(deploymentsPath, 'utf-8'));
+            }
+
+            deployments.push(deploymentInfo);
+            fs.writeFileSync(deploymentsPath, JSON.stringify(deployments, null, 2));
+
+            console.log(`💾 Deployment info saved to deployments.json\n`);
         } catch (error) {
             handleError(error);
         }
@@ -687,6 +830,7 @@ async function main(): Promise<void> {
         config.wethAddress,
     );
     const listenerSvc = new EventListenerService(provider);
+    const deploySvc = new ContractDeploymentService(provider);
 
     switch (command) {
         case 'balance': {
@@ -715,8 +859,22 @@ async function main(): Promise<void> {
             } else if (action === 'listen') {
                 if (tokenType === 'eth' || tokenType === 'weth' || tokenType === 'usdc') await listenerSvc.listen(tokenType);
                 else console.error('❌ Unknown contract type');
+            } else if (action === 'deploy') {
+                if (tokenType === 'orderbook') {
+                    await deploySvc.deploy('orderbook');
+                } else if (tokenType === 'orderbook-adv') {
+                    const feeRecipient = process.argv[5] || process.env.WALLET_ADDRESS;
+                    if (!feeRecipient) {
+                        console.error('❌ Usage: contract orderbook-adv deploy <feeRecipient>');
+                        console.error('   Or set WALLET_ADDRESS in .env');
+                        break;
+                    }
+                    await deploySvc.deploy('orderbook-adv', [feeRecipient]);
+                } else {
+                    console.error('❌ Unknown contract. Use "orderbook" or "orderbook-adv"');
+                }
             } else {
-                console.error('❌ Usage: contract <eth|weth|usdc> <query|listen>');
+                console.error('❌ Usage: contract <eth|weth|usdc|orderbook|orderbook-adv> <query|listen|deploy>');
             }
             break;
         }
@@ -778,6 +936,8 @@ Usage:
   contract eth listen            - Listen to new ETH blocks in real-time
   contract weth listen           - Listen to WETH contract events (Transfer, Approval, Deposit, Withdrawal)
   contract usdc listen           - Listen to USDC contract events (Transfer, Approval)
+  contract orderbook deploy      - Deploy SimpleOrderBook contract
+  contract orderbook-adv deploy [feeRecipient] - Deploy SortedOrderBook contract with fee recipient
   block                          - Get latest block info
   wallet create                  - Create & save persistent wallet
   wallet send eth <addr> <qty>   - Send ETH to address
