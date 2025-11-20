@@ -9,6 +9,7 @@ import { ERC20_ABI } from './ERC20_ABI.js';
 import { UNISWAP_ROUTER_ABI } from './UNISWAP_ROUTER_ABI.js';
 import { UNISWAP_FACTORY_ABI } from './UNISWAP_FACTORY_ABI.js';
 import { UNISWAP_V3_POOL_ABI } from './UNISWAP_V3_POOL_ABI.js';
+import { WETH_ABI } from './WETH_ABI.js';
 import { Token, CurrencyAmount } from '@uniswap/sdk-core';
 import { Pool } from '@uniswap/v3-sdk';
 
@@ -341,6 +342,87 @@ class SwapService {
     }
 }
 
+class EventListenerService {
+    constructor(private readonly provider: ethers.JsonRpcProvider) {}
+
+    async listen(tokenType: string): Promise<void> {
+        try {
+            const token = tokenType.toLowerCase();
+
+            if (token === 'eth') {
+                console.log(`\n👂 Listening to new ETH blocks on ${config.name}...`);
+                console.log(`Press Ctrl+C to stop\n`);
+
+                this.provider.on('block', async (blockNumber) => {
+                    const estTime = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+                    console.log(`📦 New Block: ${blockNumber} at ${estTime} EST`);
+
+                    const block = await this.provider.getBlock(blockNumber);
+                    if (block) {
+                        console.log(`   ⛽ Gas Used: ${block.gasUsed}`);
+                        console.log(`   🔢 Transactions: ${block.transactions.length}`);
+                    }
+                });
+            } else if (token === 'weth' || token === 'usdc') {
+                const tokenAddress = token === 'weth' ? config.wethAddress : USDC_ADDRESS;
+                const tokenName = token.toUpperCase();
+                const abi = token === 'weth' ? WETH_ABI : ERC20_ABI;
+
+                console.log(`\n👂 Listening to ${tokenName} events on ${config.name}...`);
+                console.log(`📍 Contract: ${tokenAddress}`);
+                console.log(`Press Ctrl+C to stop\n`);
+
+                const contract = new ethers.Contract(tokenAddress, abi, this.provider);
+                const decimals = await contract.decimals();
+
+                contract.on('Transfer', (from, to, value, event) => {
+                    console.log(`\n💸 Transfer Event Detected`);
+                    console.log(`   From: ${from}`);
+                    console.log(`   To: ${to}`);
+                    console.log(`   Amount: ${ethers.formatUnits(value, decimals)} ${tokenName}`);
+                    console.log(`   Block: ${event.log.blockNumber}`);
+                    console.log(`   Tx Hash: ${event.log.transactionHash}`);
+                });
+
+                contract.on('Approval', (owner, spender, value, event) => {
+                    console.log(`\n✅ Approval Event Detected`);
+                    console.log(`   Owner: ${owner}`);
+                    console.log(`   Spender: ${spender}`);
+                    console.log(`   Amount: ${ethers.formatUnits(value, decimals)} ${tokenName}`);
+                    console.log(`   Block: ${event.log.blockNumber}`);
+                    console.log(`   Tx Hash: ${event.log.transactionHash}`);
+                });
+
+                if (token === 'weth') {
+                    contract.on('Deposit', (dst, wad, event) => {
+                        console.log(`\n🔵 Deposit Event Detected`);
+                        console.log(`   Depositor: ${dst}`);
+                        console.log(`   Amount: ${ethers.formatUnits(wad, decimals)} WETH`);
+                        console.log(`   Block: ${event.log.blockNumber}`);
+                        console.log(`   Tx Hash: ${event.log.transactionHash}`);
+                    });
+
+                    contract.on('Withdrawal', (src, wad, event) => {
+                        console.log(`\n🔴 Withdrawal Event Detected`);
+                        console.log(`   Withdrawer: ${src}`);
+                        console.log(`   Amount: ${ethers.formatUnits(wad, decimals)} WETH`);
+                        console.log(`   Block: ${event.log.blockNumber}`);
+                        console.log(`   Tx Hash: ${event.log.transactionHash}`);
+                    });
+                }
+            } else {
+                console.error('❌ Unsupported token type. Use "eth", "weth", or "usdc"');
+                return;
+            }
+
+            // Keep the process running
+            await new Promise(() => {});
+        } catch (error) {
+            handleError(error);
+        }
+    }
+}
+
 // =============================
 // Helpers
 // =============================
@@ -548,6 +630,7 @@ async function main(): Promise<void> {
         config.uniswapFactory,
         config.wethAddress,
     );
+    const listenerSvc = new EventListenerService(provider);
 
     switch (command) {
         case 'balance': {
@@ -570,13 +653,15 @@ async function main(): Promise<void> {
             const tokenType = process.argv[3];
             const action = process.argv[4];
 
-            if (action !== 'query') {
-                console.error('❌ Usage: contract <eth|weth|usdc> query');
-                break;
+            if (action === 'query') {
+                if (tokenType === 'eth' || tokenType === 'weth' || tokenType === 'usdc') await queryContract(tokenType);
+                else console.error('❌ Unknown contract type');
+            } else if (action === 'listen') {
+                if (tokenType === 'eth' || tokenType === 'weth' || tokenType === 'usdc') await listenerSvc.listen(tokenType);
+                else console.error('❌ Unknown contract type');
+            } else {
+                console.error('❌ Usage: contract <eth|weth|usdc> <query|listen>');
             }
-
-            if (tokenType === 'eth' || tokenType === 'weth' || tokenType === 'usdc') await queryContract(tokenType);
-            else console.error('❌ Unknown contract type');
             break;
         }
 
@@ -634,6 +719,9 @@ Usage:
   contract eth query             - Query ETH native token info
   contract weth query            - Query WETH contract info
   contract usdc query            - Query USDC contract info
+  contract eth listen            - Listen to new ETH blocks in real-time
+  contract weth listen           - Listen to WETH contract events (Transfer, Approval, Deposit, Withdrawal)
+  contract usdc listen           - Listen to USDC contract events (Transfer, Approval)
   block                          - Get latest block info
   wallet create                  - Create & save persistent wallet
   wallet send eth <addr> <qty>   - Send ETH to address
