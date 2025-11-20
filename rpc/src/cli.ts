@@ -351,17 +351,34 @@ class EventListenerService {
 
             if (token === 'eth') {
                 console.log(`\n👂 Listening to new ETH blocks on ${config.name}...`);
+                console.log(`🔄 Using polling mode (checking every 12 seconds)`);
                 console.log(`Press Ctrl+C to stop\n`);
 
-                this.provider.on('block', async (blockNumber) => {
-                    const estTime = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
-                    console.log(`📦 New Block: ${blockNumber} at ${estTime} EST`);
+                let lastBlock = await this.provider.getBlockNumber();
 
-                    const block = await this.provider.getBlock(blockNumber);
-                    if (block) {
-                        console.log(`   ⛽ Gas Used: ${block.gasUsed}`);
-                        console.log(`   🔢 Transactions: ${block.transactions.length}`);
+                const pollInterval = setInterval(async () => {
+                    try {
+                        const currentBlock = await this.provider.getBlockNumber();
+                        if (currentBlock > lastBlock) {
+                            const estTime = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+                            console.log(`📦 New Block: ${currentBlock} at ${estTime} EST`);
+
+                            const block = await this.provider.getBlock(currentBlock);
+                            if (block) {
+                                console.log(`   ⛽ Gas Used: ${block.gasUsed}`);
+                                console.log(`   🔢 Transactions: ${block.transactions.length}`);
+                            }
+                            lastBlock = currentBlock;
+                        }
+                    } catch (err) {
+                        console.error('⚠️  Polling error:', err instanceof Error ? err.message : 'Unknown error');
                     }
+                }, 12000);
+
+                process.on('SIGINT', () => {
+                    clearInterval(pollInterval);
+                    console.log('\n\n👋 Stopped listening');
+                    process.exit(0);
                 });
             } else if (token === 'weth' || token === 'usdc') {
                 const tokenAddress = token === 'weth' ? config.wethAddress : USDC_ADDRESS;
@@ -370,46 +387,85 @@ class EventListenerService {
 
                 console.log(`\n👂 Listening to ${tokenName} events on ${config.name}...`);
                 console.log(`📍 Contract: ${tokenAddress}`);
+                console.log(`🔄 Using polling mode (checking every 12 seconds)`);
                 console.log(`Press Ctrl+C to stop\n`);
 
                 const contract = new ethers.Contract(tokenAddress, abi, this.provider);
                 const decimals = await contract.decimals();
+                let lastBlock = await this.provider.getBlockNumber();
 
-                contract.on('Transfer', (from, to, value, event) => {
-                    console.log(`\n💸 Transfer Event Detected`);
-                    console.log(`   From: ${from}`);
-                    console.log(`   To: ${to}`);
-                    console.log(`   Amount: ${ethers.formatUnits(value, decimals)} ${tokenName}`);
-                    console.log(`   Block: ${event.log.blockNumber}`);
-                    console.log(`   Tx Hash: ${event.log.transactionHash}`);
+                const pollInterval = setInterval(async () => {
+                    try {
+                        const currentBlock = await this.provider.getBlockNumber();
+                        if (currentBlock > lastBlock) {
+                            const transferFilter = contract.filters.Transfer();
+                            const approvalFilter = contract.filters.Approval();
+
+                            const [transferLogs, approvalLogs] = await Promise.all([
+                                contract.queryFilter(transferFilter, lastBlock + 1, currentBlock),
+                                contract.queryFilter(approvalFilter, lastBlock + 1, currentBlock),
+                            ]);
+
+                            for (const log of transferLogs) {
+                                const estTime = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+                                console.log(`\n💸 Transfer Event Detected at ${estTime} EST`);
+                                console.log(`   From: ${log.args[0]}`);
+                                console.log(`   To: ${log.args[1]}`);
+                                console.log(`   Amount: ${ethers.formatUnits(log.args[2], decimals)} ${tokenName}`);
+                                console.log(`   Block: ${log.blockNumber}`);
+                                console.log(`   Tx Hash: ${log.transactionHash}`);
+                            }
+
+                            for (const log of approvalLogs) {
+                                const estTime = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+                                console.log(`\n✅ Approval Event Detected at ${estTime} EST`);
+                                console.log(`   Owner: ${log.args[0]}`);
+                                console.log(`   Spender: ${log.args[1]}`);
+                                console.log(`   Amount: ${ethers.formatUnits(log.args[2], decimals)} ${tokenName}`);
+                                console.log(`   Block: ${log.blockNumber}`);
+                                console.log(`   Tx Hash: ${log.transactionHash}`);
+                            }
+
+                            if (token === 'weth') {
+                                const depositFilter = contract.filters.Deposit();
+                                const withdrawalFilter = contract.filters.Withdrawal();
+
+                                const [depositLogs, withdrawalLogs] = await Promise.all([
+                                    contract.queryFilter(depositFilter, lastBlock + 1, currentBlock),
+                                    contract.queryFilter(withdrawalFilter, lastBlock + 1, currentBlock),
+                                ]);
+
+                                for (const log of depositLogs) {
+                                    const estTime = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+                                    console.log(`\n🔵 Deposit Event Detected at ${estTime} EST`);
+                                    console.log(`   Depositor: ${log.args[0]}`);
+                                    console.log(`   Amount: ${ethers.formatUnits(log.args[1], decimals)} WETH`);
+                                    console.log(`   Block: ${log.blockNumber}`);
+                                    console.log(`   Tx Hash: ${log.transactionHash}`);
+                                }
+
+                                for (const log of withdrawalLogs) {
+                                    const estTime = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+                                    console.log(`\n🔴 Withdrawal Event Detected at ${estTime} EST`);
+                                    console.log(`   Withdrawer: ${log.args[0]}`);
+                                    console.log(`   Amount: ${ethers.formatUnits(log.args[1], decimals)} WETH`);
+                                    console.log(`   Block: ${log.blockNumber}`);
+                                    console.log(`   Tx Hash: ${log.transactionHash}`);
+                                }
+                            }
+
+                            lastBlock = currentBlock;
+                        }
+                    } catch (err) {
+                        console.error('⚠️  Polling error:', err instanceof Error ? err.message : 'Unknown error');
+                    }
+                }, 12000);
+
+                process.on('SIGINT', () => {
+                    clearInterval(pollInterval);
+                    console.log('\n\n👋 Stopped listening');
+                    process.exit(0);
                 });
-
-                contract.on('Approval', (owner, spender, value, event) => {
-                    console.log(`\n✅ Approval Event Detected`);
-                    console.log(`   Owner: ${owner}`);
-                    console.log(`   Spender: ${spender}`);
-                    console.log(`   Amount: ${ethers.formatUnits(value, decimals)} ${tokenName}`);
-                    console.log(`   Block: ${event.log.blockNumber}`);
-                    console.log(`   Tx Hash: ${event.log.transactionHash}`);
-                });
-
-                if (token === 'weth') {
-                    contract.on('Deposit', (dst, wad, event) => {
-                        console.log(`\n🔵 Deposit Event Detected`);
-                        console.log(`   Depositor: ${dst}`);
-                        console.log(`   Amount: ${ethers.formatUnits(wad, decimals)} WETH`);
-                        console.log(`   Block: ${event.log.blockNumber}`);
-                        console.log(`   Tx Hash: ${event.log.transactionHash}`);
-                    });
-
-                    contract.on('Withdrawal', (src, wad, event) => {
-                        console.log(`\n🔴 Withdrawal Event Detected`);
-                        console.log(`   Withdrawer: ${src}`);
-                        console.log(`   Amount: ${ethers.formatUnits(wad, decimals)} WETH`);
-                        console.log(`   Block: ${event.log.blockNumber}`);
-                        console.log(`   Tx Hash: ${event.log.transactionHash}`);
-                    });
-                }
             } else {
                 console.error('❌ Unsupported token type. Use "eth", "weth", or "usdc"');
                 return;
